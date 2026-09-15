@@ -1,24 +1,37 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getLastStorageError, ICON_OPTIONS, loadAbout, saveAbout } from "../data/seedData";
 import { IMAGE_ACCEPT, processImageFile } from "../data/imageUpload";
 import Icon from "../components/Icons";
 import MediaTypeToggle from "../components/MediaTypeToggle";
+import useLiveStorage from "../hooks/useLiveStorage";
 
 function emptyValue() {
   return { id: `v_${Date.now()}`, icon: "shield", title: "", text: "" };
 }
 
 export default function AboutTab() {
-  const [about, setAbout] = useState(loadAbout);
+  // useLiveStorage (not a one-time useState) so this re-syncs itself once
+  // the async local/Supabase read resolves — without it, opening this tab
+  // before that read settles left it stuck showing stale content.
+  const [about] = useLiveStorage(loadAbout);
   const [error, setError] = useState("");
   const [toast, setToast] = useState(false);
   const imageRef = useRef(null);
   const videoRef = useRef(null);
 
-  function persist(next) {
-    const ok = saveAbout(next);
+  // Lets update()/updateValue() always build the next value from the
+  // latest known state rather than a closure that can go stale while a
+  // previous edit's save() is still in flight (this domain has many
+  // fields — title, badge, description, values... — that a form can
+  // reasonably touch in quick succession).
+  const aboutRef = useRef(about);
+  useEffect(() => {
+    aboutRef.current = about;
+  }, [about]);
+
+  async function persist(next) {
+    const ok = await saveAbout(next);
     if (ok) {
-      setAbout(next);
       setError("");
       setToast(true);
       setTimeout(() => setToast(false), 1800);
@@ -30,7 +43,7 @@ export default function AboutTab() {
   }
 
   function update(field, value) {
-    persist({ ...about, [field]: value });
+    persist({ ...aboutRef.current, [field]: value });
   }
 
   async function handleImage(file) {
@@ -51,19 +64,22 @@ export default function AboutTab() {
   }
 
   function updateValue(id, field, val) {
+    const current = aboutRef.current;
     persist({
-      ...about,
-      values: about.values.map((v) => (v.id === id ? { ...v, [field]: val } : v)),
+      ...current,
+      values: current.values.map((v) => (v.id === id ? { ...v, [field]: val } : v)),
     });
   }
 
   function addValue() {
-    persist({ ...about, values: [...about.values, emptyValue()] });
+    const current = aboutRef.current;
+    persist({ ...current, values: [...current.values, emptyValue()] });
   }
 
   function removeValue(id) {
     if (!window.confirm("Supprimer cette valeur ?")) return;
-    persist({ ...about, values: about.values.filter((v) => v.id !== id) });
+    const current = aboutRef.current;
+    persist({ ...current, values: current.values.filter((v) => v.id !== id) });
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   getLastStorageError,
   ICON_OPTIONS,
@@ -11,6 +11,7 @@ import { IMAGE_ACCEPT, processImageFile } from "../data/imageUpload";
 import Icon from "../components/Icons";
 import MediaTypeToggle from "../components/MediaTypeToggle";
 import UploadStatus from "../components/UploadStatus";
+import useLiveStorage from "../hooks/useLiveStorage";
 
 const MAX_VIDEO_BYTES = 5 * 1024 * 1024;
 
@@ -30,8 +31,10 @@ function emptyItem() {
 }
 
 export default function ExcellenceTab() {
-  const [slides, setSlides] = useState(loadWhyUsSlides);
-  const [items, setItems] = useState(loadWhyUsItems);
+  // useLiveStorage re-syncs once the async local/Supabase read resolves —
+  // see the identical fix/comment in ProjectsTab.jsx.
+  const [slides] = useLiveStorage(loadWhyUsSlides);
+  const [items] = useLiveStorage(loadWhyUsItems);
   const [error, setError] = useState("");
   const [imgStatus, setImgStatus] = useState({});
   const [imgError, setImgError] = useState({});
@@ -43,6 +46,15 @@ export default function ExcellenceTab() {
   const videoRefs = useRef({});
   const videoUrlRefs = useRef({});
 
+  const slidesRef = useRef(slides);
+  useEffect(() => {
+    slidesRef.current = slides;
+  }, [slides]);
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
   function addImageUrl(id) {
     const url = (imageUrlInput[id] || "").trim();
     if (!url) return;
@@ -52,9 +64,6 @@ export default function ExcellenceTab() {
     setImgSuccess((s) => ({ ...s, [id]: "Image ajoutée depuis l'URL." }));
   }
 
-  // Only commits to React state once the write actually succeeds — a
-  // failed (quota-exceeded) save must not leave the admin thinking a
-  // video was saved when it silently wasn't.
   async function persistSlides(next) {
     const ok = await saveWhyUsSlides(next);
     if (!ok) {
@@ -63,13 +72,11 @@ export default function ExcellenceTab() {
       );
       return;
     }
-    setSlides(next);
     setError("");
   }
 
-  function persistItems(next) {
-    setItems(next);
-    const ok = saveWhyUsItems(next);
+  async function persistItems(next) {
+    const ok = await saveWhyUsItems(next);
     if (!ok) setError("Échec de la sauvegarde.");
     else setError("");
   }
@@ -79,7 +86,7 @@ export default function ExcellenceTab() {
   }
 
   function updateSlideFields(id, fields) {
-    persistSlides(slides.map((s) => (s.id === id ? { ...s, ...fields } : s)));
+    persistSlides(slidesRef.current.map((s) => (s.id === id ? { ...s, ...fields } : s)));
   }
 
   async function handleSlideImage(id, file) {
@@ -120,16 +127,16 @@ export default function ExcellenceTab() {
   }
 
   function addSlide() {
-    persistSlides([...slides, emptySlide()]);
+    persistSlides([...slidesRef.current, emptySlide()]);
   }
 
   function removeSlide(id) {
     if (!window.confirm("Supprimer cette diapositive ?")) return;
-    persistSlides(slides.filter((s) => s.id !== id));
+    persistSlides(slidesRef.current.filter((s) => s.id !== id));
   }
 
   function moveSlide(index, dir) {
-    const next = [...slides];
+    const next = [...slidesRef.current];
     const target = index + dir;
     if (target < 0 || target >= next.length) return;
     [next[index], next[target]] = [next[target], next[index]];
@@ -137,16 +144,16 @@ export default function ExcellenceTab() {
   }
 
   function updateItem(id, field, value) {
-    persistItems(items.map((it) => (it.id === id ? { ...it, [field]: value } : it)));
+    persistItems(itemsRef.current.map((it) => (it.id === id ? { ...it, [field]: value } : it)));
   }
 
   function addItem() {
-    persistItems([...items, emptyItem()]);
+    persistItems([...itemsRef.current, emptyItem()]);
   }
 
   function removeItem(id) {
     if (!window.confirm("Supprimer cet avantage ?")) return;
-    persistItems(items.filter((it) => it.id !== id));
+    persistItems(itemsRef.current.filter((it) => it.id !== id));
   }
 
   return (

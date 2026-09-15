@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   getLastStorageError,
   loadHeroSlides,
@@ -8,16 +8,25 @@ import {
 } from "../data/seedData";
 import { IMAGE_ACCEPT, processImageFile } from "../data/imageUpload";
 import Icon from "../components/Icons";
+import useLiveStorage from "../hooks/useLiveStorage";
 
 function emptySlide() {
   return { id: `slide_${Date.now()}`, image: null, title: "", subtitle: "" };
 }
 
 export default function HeroSlidesTab() {
-  const [slides, setSlides] = useState(loadHeroSlides);
+  // useLiveStorage (not a one-time useState) so this list re-syncs itself
+  // once the async local/Supabase read resolves — without it, opening this
+  // tab before that read settles left it stuck showing stale/empty slides.
+  const [slides] = useLiveStorage(loadHeroSlides);
   const [speed, setSpeed] = useState(loadHeroSpeed);
   const [error, setError] = useState("");
   const fileRefs = useRef({});
+
+  const slidesRef = useRef(slides);
+  useEffect(() => {
+    slidesRef.current = slides;
+  }, [slides]);
 
   function updateSpeed(value) {
     const clamped = Math.min(10, Math.max(2, Number(value) || 4));
@@ -33,12 +42,11 @@ export default function HeroSlidesTab() {
       );
       return;
     }
-    setSlides(next);
     setError("");
   }
 
   function updateField(id, field, value) {
-    persist(slides.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
+    persist(slidesRef.current.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
   }
 
   async function handleImage(id, file) {
@@ -52,17 +60,17 @@ export default function HeroSlidesTab() {
   }
 
   function addSlide() {
-    persist([...slides, emptySlide()]);
+    persist([...slidesRef.current, emptySlide()]);
   }
 
   function removeSlide(id) {
-    if (slides.length <= 1) return;
+    if (slidesRef.current.length <= 1) return;
     if (!window.confirm("Supprimer cette diapositive ?")) return;
-    persist(slides.filter((s) => s.id !== id));
+    persist(slidesRef.current.filter((s) => s.id !== id));
   }
 
   function move(index, dir) {
-    const next = [...slides];
+    const next = [...slidesRef.current];
     const target = index + dir;
     if (target < 0 || target >= next.length) return;
     [next[index], next[target]] = [next[target], next[index]];

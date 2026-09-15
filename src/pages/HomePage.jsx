@@ -13,6 +13,7 @@ import Contact from "../components/Contact";
 import Footer from "../components/Footer";
 import SocialFloating from "../components/SocialFloating";
 import WhatsAppButton from "../components/WhatsAppButton";
+import SupabaseDebugBadge from "../components/SupabaseDebugBadge";
 import { findDesignTemplate, loadDesignTemplate } from "../data/seedData";
 import useLiveStorage from "../hooks/useLiveStorage";
 
@@ -55,6 +56,7 @@ export default function HomePage() {
       <Footer />
       <SocialFloating />
       <WhatsAppButton />
+      <SupabaseDebugBadge />
     </div>
   );
 }

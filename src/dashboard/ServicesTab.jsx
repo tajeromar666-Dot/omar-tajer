@@ -1,32 +1,39 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ICON_OPTIONS, loadServices, saveServices } from "../data/seedData";
 import Icon from "../components/Icons";
+import useLiveStorage from "../hooks/useLiveStorage";
 
 function emptyService() {
   return { id: `s_${Date.now()}`, icon: "tool", title: "", description: "" };
 }
 
 export default function ServicesTab() {
-  const [services, setServices] = useState(loadServices);
+  // useLiveStorage re-syncs once the async local/Supabase read resolves —
+  // see the identical fix/comment in ProjectsTab.jsx.
+  const [services] = useLiveStorage(loadServices);
   const [error, setError] = useState("");
 
-  function persist(next) {
-    setServices(next);
-    const ok = saveServices(next);
+  const servicesRef = useRef(services);
+  useEffect(() => {
+    servicesRef.current = services;
+  }, [services]);
+
+  async function persist(next) {
+    const ok = await saveServices(next);
     setError(ok ? "" : "Échec de la sauvegarde.");
   }
 
   function update(id, field, value) {
-    persist(services.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
+    persist(servicesRef.current.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
   }
 
   function addService() {
-    persist([...services, emptyService()]);
+    persist([...servicesRef.current, emptyService()]);
   }
 
   function removeService(id) {
     if (!window.confirm("Supprimer ce service ?")) return;
-    persist(services.filter((s) => s.id !== id));
+    persist(servicesRef.current.filter((s) => s.id !== id));
   }
 
   return (

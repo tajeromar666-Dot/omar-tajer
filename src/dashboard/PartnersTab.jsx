@@ -1,15 +1,18 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getLastStorageError, loadPartners, savePartners } from "../data/seedData";
 import { IMAGE_ACCEPT, processImageFile } from "../data/imageUpload";
 import Icon from "../components/Icons";
 import UploadStatus from "../components/UploadStatus";
+import useLiveStorage from "../hooks/useLiveStorage";
 
 function emptyPartner() {
   return { id: `partner_${Date.now()}`, name: "", logo: null };
 }
 
 export default function PartnersTab() {
-  const [partners, setPartners] = useState(loadPartners);
+  // useLiveStorage re-syncs once the async local/Supabase read resolves —
+  // see the identical fix/comment in ProjectsTab.jsx.
+  const [partners] = useLiveStorage(loadPartners);
   const [error, setError] = useState("");
   const [logoStatus, setLogoStatus] = useState({});
   const [logoError, setLogoError] = useState({});
@@ -18,10 +21,15 @@ export default function PartnersTab() {
   const [logoUrlInput, setLogoUrlInput] = useState({});
   const fileRefs = useRef({});
 
+  const partnersRef = useRef(partners);
+  useEffect(() => {
+    partnersRef.current = partners;
+  }, [partners]);
+
   function addLogoUrl(id) {
     const url = (logoUrlInput[id] || "").trim();
     if (!url) return;
-    persist(partners.map((p) => (p.id === id ? { ...p, logo: url } : p)));
+    persist(partnersRef.current.map((p) => (p.id === id ? { ...p, logo: url } : p)));
     setLogoUrlInput((s) => ({ ...s, [id]: "" }));
     setLogoStatus((s) => ({ ...s, [id]: "success" }));
     setLogoSuccess((s) => ({ ...s, [id]: "Logo ajouté depuis l'URL." }));
@@ -33,12 +41,11 @@ export default function PartnersTab() {
       setError(getLastStorageError() || "Stockage plein. Compressez vos images ou utilisez Supabase Storage.");
       return;
     }
-    setPartners(next);
     setError("");
   }
 
   function updateName(id, name) {
-    persist(partners.map((p) => (p.id === id ? { ...p, name } : p)));
+    persist(partnersRef.current.map((p) => (p.id === id ? { ...p, name } : p)));
   }
 
   async function handleLogo(id, file) {
@@ -46,7 +53,7 @@ export default function PartnersTab() {
     setLogoStatus((s) => ({ ...s, [id]: "loading" }));
     try {
       const { dataUrl } = await processImageFile(file);
-      persist(partners.map((p) => (p.id === id ? { ...p, logo: dataUrl } : p)));
+      persist(partnersRef.current.map((p) => (p.id === id ? { ...p, logo: dataUrl } : p)));
       setLogoStatus((s) => ({ ...s, [id]: "success" }));
       setLogoSuccess((s) => ({ ...s, [id]: "Logo mis à jour." }));
     } catch (err) {
@@ -62,12 +69,12 @@ export default function PartnersTab() {
   }
 
   function addPartner() {
-    persist([...partners, emptyPartner()]);
+    persist([...partnersRef.current, emptyPartner()]);
   }
 
   function removePartner(id) {
     if (!window.confirm("Supprimer ce partenaire ?")) return;
-    persist(partners.filter((p) => p.id !== id));
+    persist(partnersRef.current.filter((p) => p.id !== id));
   }
 
   return (

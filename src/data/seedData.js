@@ -4,7 +4,7 @@
 
 import { PARTNER_LOGOS } from "../assets/logos";
 import { isSupabaseConnected, supabase } from "../supabase";
-import { createLocalMediaSync, createTableSync } from "./supabaseSync";
+import { createTableSync } from "./supabaseSync";
 import { deleteMedia, getMedia, listMediaKeys, saveMedia } from "../utils/storage";
 import { getContrastColor, getReadableAccent, mixHex } from "../utils/contrast";
 
@@ -1477,18 +1477,42 @@ export function saveTheme(theme) {
   return write(KEYS.theme, theme);
 }
 
-// Hero slides hold base64 images — moved to IndexedDB (no Supabase table
-// for this domain, so createLocalMediaSync, not createTableSync).
+// Hero slides hold base64 images — mirrored to IndexedDB, and now also
+// synced through Supabase (cia_hero_slides) like Projects/Plans3D/Team.
 function localHeroSlides() {
-  return localMediaReadNonEmpty(KEYS.heroSlides);
+  return localMediaRead(KEYS.heroSlides, DEFAULT_HERO_SLIDES);
 }
 
-const heroSlidesSync = createLocalMediaSync({
-  key: KEYS.heroSlides,
-  defaultValue: DEFAULT_HERO_SLIDES,
+// Array order is the display order (no explicit field on the client side)
+// — mapped to `display_order` on save, table fetched ordered by it so
+// order round-trips correctly, same convention as Team/Partners below.
+function heroSlideToRow(slide, index) {
+  return {
+    id: slide.id,
+    image: slide.image || null,
+    title: slide.title || "",
+    subtitle: slide.subtitle || "",
+    display_order: index,
+  };
+}
+
+function heroSlideFromRow(row) {
+  return {
+    id: row.id,
+    image: row.image || null,
+    title: row.title || "",
+    subtitle: row.subtitle || "",
+  };
+}
+
+const heroSlidesSync = createTableSync({
+  table: KEYS.heroSlides,
   localRead: localHeroSlides,
   localWrite: (slides) => saveMediaWithErrorHandling(KEYS.heroSlides, slides),
+  toRow: heroSlideToRow,
+  fromRow: heroSlideFromRow,
   notify: () => notify(KEYS.heroSlides),
+  orderBy: { column: "display_order", ascending: true },
 });
 
 export function loadHeroSlides() {
@@ -1499,15 +1523,131 @@ export function saveHeroSlides(slides) {
   return heroSlidesSync.save(slides);
 }
 
-export function loadAbout() {
-  const existing = read(KEYS.about, null);
-  if (existing) return { ...DEFAULT_ABOUT, ...existing };
-  write(KEYS.about, DEFAULT_ABOUT);
-  return DEFAULT_ABOUT;
+// ---- À Propos — single row (id is always the fixed string "about"),
+// now synced through Supabase (cia_about) the same way Settings is: a
+// dedicated module-level cache/fetch/realtime trio rather than
+// createTableSync, since this domain is one record, not an array.
+let aboutCache = null;
+let aboutWriteSeq = 0;
+let aboutFetchStarted = false;
+let aboutRealtimeStarted = false;
+
+function aboutToRow(about) {
+  const isVideo = about.mediaType === "video";
+  return {
+    id: "about",
+    title: about.title || "",
+    title_accent: about.titleAccent || "",
+    media_type: about.mediaType || "image",
+    image: isVideo ? null : about.image || null,
+    video: isVideo ? (about.videoType === "url" ? about.videoUrl || null : about.video || null) : null,
+    video_type: isVideo ? about.videoType || null : null,
+    badge_number: about.badgeNumber || "",
+    badge_label: about.badgeLabel || "",
+    description: about.description || "",
+    value_items: about.values || [],
+  };
 }
 
-export function saveAbout(about) {
-  return write(KEYS.about, about);
+function aboutFromRow(row) {
+  const hasVideo = !!row.video;
+  return {
+    title: row.title || "",
+    titleAccent: row.title_accent || "",
+    mediaType: row.media_type || "image",
+    image: row.image || null,
+    video: hasVideo && row.video_type !== "url" ? row.video : null,
+    videoType: hasVideo ? row.video_type : null,
+    videoUrl: hasVideo && row.video_type === "url" ? row.video : "",
+    badgeNumber: row.badge_number || "",
+    badgeLabel: row.badge_label || "",
+    description: row.description || "",
+    values: row.value_items || [],
+  };
+}
+
+async function fetchAboutFromSupabase() {
+  const seqAtStart = aboutWriteSeq;
+  try {
+    const { data, error } = await supabase.from(KEYS.about).select().eq("id", "about").maybeSingle();
+    if (error) throw error;
+    if (seqAtStart !== aboutWriteSeq || !data) return;
+    aboutCache = { ...DEFAULT_ABOUT, ...aboutFromRow(data) };
+    write(KEYS.about, aboutCache);
+    notify(KEYS.about);
+  } catch (err) {
+    console.error("aboutSync: fetch failed, staying on localStorage", err);
+  }
+}
+
+function startAboutRealtime() {
+  if (aboutRealtimeStarted) return;
+  aboutRealtimeStarted = true;
+  try {
+    supabase
+      .channel(`${KEYS.about}-changes`)
+      .on("postgres_changes", { event: "*", schema: "public", table: KEYS.about }, () => {
+        fetchAboutFromSupabase();
+      })
+      .subscribe();
+  } catch (err) {
+    console.error("aboutSync: realtime subscription failed", err);
+  }
+}
+
+export function loadAbout() {
+  if (aboutCache === null) {
+    const existing = read(KEYS.about, null);
+    aboutCache = existing ? { ...DEFAULT_ABOUT, ...existing } : DEFAULT_ABOUT;
+    if (!existing) write(KEYS.about, DEFAULT_ABOUT);
+  }
+  if (isSupabaseConnected && !aboutFetchStarted) {
+    aboutFetchStarted = true;
+    fetchAboutFromSupabase();
+    startAboutRealtime();
+  }
+  return aboutCache;
+}
+
+export async function saveAbout(about) {
+  aboutWriteSeq += 1;
+  if (isSupabaseConnected) {
+    try {
+      const { error } = await supabase.from(KEYS.about).upsert(aboutToRow(about));
+      if (error) throw error;
+      aboutCache = about;
+      write(KEYS.about, about);
+      notify(KEYS.about);
+      return true;
+    } catch (err) {
+      console.error("aboutSync: save failed, falling back to localStorage", err);
+    }
+  }
+  const ok = write(KEYS.about, about);
+  if (ok) aboutCache = about;
+  return ok;
+}
+
+// Tops up Supabase from whatever's held locally if the remote row doesn't
+// exist yet — same "seed once from the admin dashboard" role as
+// migrateSettingsIfEmpty(), called only from runMigrations() below.
+async function migrateAboutIfEmpty() {
+  if (!isSupabaseConnected) return;
+  try {
+    const existing = read(KEYS.about, null);
+    if (!existing) return;
+
+    const { data, error } = await supabase.from(KEYS.about).select("id").eq("id", "about").maybeSingle();
+    if (error) throw error;
+    if (data) return;
+
+    const { error: upsertError } = await supabase.from(KEYS.about).upsert(aboutToRow(existing));
+    if (upsertError) throw upsertError;
+    console.info("aboutSync: reconciled locally-held content into Supabase");
+    await fetchAboutFromSupabase();
+  } catch (err) {
+    console.error("aboutSync: reconcile failed", err);
+  }
 }
 
 // Titles from the pre-update default list — a browser that seeded before
@@ -1530,31 +1670,62 @@ function isLegacyServiceList(list) {
   );
 }
 
-export function loadServices() {
+// Services text content is small (no media) — plain localStorage mirror,
+// same as before, now also synced through Supabase (cia_services).
+function localServices() {
   const existing = read(KEYS.services, null);
-  if (existing && existing.length && !isLegacyServiceList(existing)) {
-    return existing;
-  }
+  if (existing && existing.length && !isLegacyServiceList(existing)) return existing;
   write(KEYS.services, DEFAULT_SERVICES);
   return DEFAULT_SERVICES;
 }
 
+function serviceToRow(s) {
+  return { id: s.id, icon: s.icon || "", title: s.title || "", description: s.description || "" };
+}
+
+function serviceFromRow(row) {
+  return { id: row.id, icon: row.icon || "", title: row.title || "", description: row.description || "" };
+}
+
+const servicesSync = createTableSync({
+  table: KEYS.services,
+  localRead: localServices,
+  localWrite: (items) => write(KEYS.services, items),
+  toRow: serviceToRow,
+  fromRow: serviceFromRow,
+  notify: () => notify(KEYS.services),
+});
+
+export function loadServices() {
+  return servicesSync.load();
+}
+
 export function saveServices(services) {
-  return write(KEYS.services, services);
+  return servicesSync.save(services);
 }
 
-// Partner logos hold base64 images — moved to IndexedDB (no Supabase
-// table for this domain).
+// Partner logos hold base64 images — mirrored to IndexedDB, and now also
+// synced through Supabase (cia_partners) like Team.
 function localPartners() {
-  return localMediaReadNonEmpty(KEYS.partners);
+  return localMediaRead(KEYS.partners, DEFAULT_PARTNERS);
 }
 
-const partnersSync = createLocalMediaSync({
-  key: KEYS.partners,
-  defaultValue: DEFAULT_PARTNERS,
+function partnerToRow(p, index) {
+  return { id: p.id, name: p.name || "", logo: p.logo || null, display_order: index };
+}
+
+function partnerFromRow(row) {
+  return { id: row.id, name: row.name || "", logo: row.logo || null };
+}
+
+const partnersSync = createTableSync({
+  table: KEYS.partners,
   localRead: localPartners,
   localWrite: (partners) => saveMediaWithErrorHandling(KEYS.partners, partners),
+  toRow: partnerToRow,
+  fromRow: partnerFromRow,
   notify: () => notify(KEYS.partners),
+  orderBy: { column: "display_order", ascending: true },
 });
 
 export function loadPartners() {
@@ -1611,29 +1782,80 @@ export function saveTeam(team) {
   return teamSync.save(team);
 }
 
-export function loadWhyUsItems() {
+// Advantage cards ("Pourquoi Nous Choisir") — plain localStorage mirror,
+// now also synced through Supabase (cia_whyus_items).
+function localWhyUsItems() {
   const existing = read(KEYS.whyUsItems, null);
   if (existing && existing.length) return existing;
   write(KEYS.whyUsItems, DEFAULT_WHYUS_ITEMS);
   return DEFAULT_WHYUS_ITEMS;
 }
 
-export function saveWhyUsItems(items) {
-  return write(KEYS.whyUsItems, items);
+function whyUsItemToRow(it) {
+  return { id: it.id, icon: it.icon || "", title: it.title || "", text: it.text || "" };
 }
 
-// Excellence slider slides hold base64 images/video — moved to IndexedDB
-// (no Supabase table for this domain).
+function whyUsItemFromRow(row) {
+  return { id: row.id, icon: row.icon || "", title: row.title || "", text: row.text || "" };
+}
+
+const whyUsItemsSync = createTableSync({
+  table: KEYS.whyUsItems,
+  localRead: localWhyUsItems,
+  localWrite: (items) => write(KEYS.whyUsItems, items),
+  toRow: whyUsItemToRow,
+  fromRow: whyUsItemFromRow,
+  notify: () => notify(KEYS.whyUsItems),
+});
+
+export function loadWhyUsItems() {
+  return whyUsItemsSync.load();
+}
+
+export function saveWhyUsItems(items) {
+  return whyUsItemsSync.save(items);
+}
+
+// Excellence slider slides hold base64 images/video — mirrored to
+// IndexedDB, and now also synced through Supabase (cia_whyus_slides).
 function localWhyUsSlides() {
   return localMediaRead(KEYS.whyUsSlides, DEFAULT_WHYUS_SLIDES);
 }
 
-const whyUsSlidesSync = createLocalMediaSync({
-  key: KEYS.whyUsSlides,
-  defaultValue: DEFAULT_WHYUS_SLIDES,
+// Same video/videoType collapsing as Projects/Plans3D/Hero — see
+// projectToRow/FromRow.
+function whyUsSlideToRow(slide, index) {
+  const isVideo = slide.mediaType === "video";
+  return {
+    id: slide.id,
+    media_type: slide.mediaType || "image",
+    image: isVideo ? null : slide.image || null,
+    video: isVideo ? (slide.videoType === "url" ? slide.videoUrl || null : slide.video || null) : null,
+    video_type: isVideo ? slide.videoType || null : null,
+    display_order: index,
+  };
+}
+
+function whyUsSlideFromRow(row) {
+  const hasVideo = !!row.video;
+  return {
+    id: row.id,
+    mediaType: row.media_type || "image",
+    image: row.image || null,
+    video: hasVideo && row.video_type !== "url" ? row.video : null,
+    videoType: hasVideo ? row.video_type : null,
+    videoUrl: hasVideo && row.video_type === "url" ? row.video : "",
+  };
+}
+
+const whyUsSlidesSync = createTableSync({
+  table: KEYS.whyUsSlides,
   localRead: localWhyUsSlides,
   localWrite: (slides) => saveMediaWithErrorHandling(KEYS.whyUsSlides, slides),
+  toRow: whyUsSlideToRow,
+  fromRow: whyUsSlideFromRow,
   notify: () => notify(KEYS.whyUsSlides),
+  orderBy: { column: "display_order", ascending: true },
 });
 
 export function loadWhyUsSlides() {
@@ -1760,11 +1982,11 @@ export function retryPlans3D() {
 }
 
 // Runs the one-time "if this Supabase table is empty, seed it from
-// whatever's in localStorage" migration for all 6 in-scope domains. Only
-// ever called from the authenticated admin dashboard (DashboardLayout) —
-// never from a public-site load — so an anonymous visitor's browser (whose
-// localStorage, if any, holds only auto-seeded defaults) can never win the
-// race and lock placeholder content into Supabase permanently.
+// whatever's in localStorage" migration for every Supabase-backed domain.
+// Only ever called from the authenticated admin dashboard (DashboardLayout)
+// — never from a public-site load — so an anonymous visitor's browser
+// (whose localStorage, if any, holds only auto-seeded defaults) can never
+// win the race and lock placeholder content into Supabase permanently.
 export async function runMigrations() {
   await Promise.all([
     projectsSync.migrateIfEmpty(),
@@ -1773,6 +1995,12 @@ export async function runMigrations() {
     testimonialsSync.migrateIfEmpty(),
     teamSync.migrateIfEmpty(),
     migrateSettingsIfEmpty(),
+    heroSlidesSync.migrateIfEmpty(),
+    migrateAboutIfEmpty(),
+    servicesSync.migrateIfEmpty(),
+    partnersSync.migrateIfEmpty(),
+    whyUsItemsSync.migrateIfEmpty(),
+    whyUsSlidesSync.migrateIfEmpty(),
   ]);
 }
 
