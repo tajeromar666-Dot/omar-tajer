@@ -131,6 +131,20 @@ export default function SettingsTab() {
               onChange={(e) => update("address", e.target.value)}
             />
           </div>
+
+          <div className="form-group">
+            <label>Vidéo de fond du Hero (optionnel)</label>
+            <input
+              type="url"
+              value={form.heroVideo || ""}
+              onChange={(e) => update("heroVideo", e.target.value)}
+              placeholder="https://.../video.mp4"
+            />
+            <p className="field-hint">
+              Lien direct vers un fichier .mp4 ou .webm (pas YouTube). Chargée uniquement sur
+              ordinateur, après l'affichage de la page — jamais sur mobile ou connexion lente.
+            </p>
+          </div>
         </div>
 
         <p className="field-hint">

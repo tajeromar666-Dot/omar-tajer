@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getLastStorageError, loadTestimonials, saveTestimonials } from "../data/seedData";
 import { uploadMedia } from "../data/mediaStorage";
+import { processImageFile } from "../data/imageUpload";
 import Pagination from "./Pagination";
 import Icon from "../components/Icons";
 import useDebouncedValue from "../hooks/useDebouncedValue";
@@ -163,8 +164,13 @@ export default function TestimonialsTab() {
       setError("L'avatar doit faire moins de 2 Mo.");
       return;
     }
-    const url = await uploadMedia(file, "testimonials");
-    update(id, "avatar", url);
+    try {
+      const { file: compressed } = await processImageFile(file);
+      const url = await uploadMedia(compressed, "testimonials");
+      update(id, "avatar", url);
+    } catch (err) {
+      setError(err.message);
+    }
   }, [update]);
 
   const addTestimonial = useCallback(() => {

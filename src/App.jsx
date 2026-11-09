@@ -4,8 +4,12 @@ import { useAuth } from "./context/AuthContext.jsx";
 import { applySectionColors, applySpacing, loadSectionColors, loadSpacing } from "./data/seedData";
 import useLiveStorage from "./hooks/useLiveStorage";
 import HomePage from "./pages/HomePage.jsx";
-import LoginPage from "./pages/LoginPage.jsx";
-import DashboardLayout from "./dashboard/DashboardLayout.jsx";
+
+// The whole admin area (login page, dashboard shell and its stylesheet) is
+// split out of the public bundle: none of it is downloaded until an /admin
+// route is actually visited.
+const LoginPage = lazy(() => import("./pages/LoginPage.jsx"));
+const DashboardLayout = lazy(() => import("./dashboard/DashboardLayout.jsx"));
 
 // Every admin tab is code-split with React.lazy — the dashboard shell
 // (DashboardLayout/Sidebar) loads eagerly, but a tab's own JS (and its
@@ -69,12 +73,21 @@ export default function App() {
       <SpacingSync />
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/admin/login" element={<LoginPage />} />
+        <Route
+          path="/admin/login"
+          element={
+            <Suspense fallback={null}>
+              <LoginPage />
+            </Suspense>
+          }
+        />
         <Route
           path="/admin"
           element={
             <RouteGuard>
-              <DashboardLayout />
+              <Suspense fallback={null}>
+                <DashboardLayout />
+              </Suspense>
             </RouteGuard>
           }
         >

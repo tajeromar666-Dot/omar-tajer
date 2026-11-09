@@ -1,4 +1,4 @@
-import { isSupabaseConnected, supabase } from "../supabase";
+import { getSupabase, isSupabaseConnected } from "../supabase";
 
 const BUCKET = "cia-media";
 
@@ -25,6 +25,7 @@ function safeName(file) {
 export async function uploadMedia(file, folder) {
   if (isSupabaseConnected) {
     try {
+      const supabase = await getSupabase();
       const path = `${folder}/${safeName(file)}`;
       const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
         cacheControl: "3600",

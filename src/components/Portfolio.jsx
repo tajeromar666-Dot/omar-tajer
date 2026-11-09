@@ -1,29 +1,24 @@
-import { useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useLanguage } from "../context/LanguageContext.jsx";
 import {
   getProjectsStatus,
-  loadColorOverrides,
   loadProjects,
-  loadSectionThemes,
   loadVisibility,
   retryProjects,
-  sectionThemeStyle,
   SERVICE_CATEGORIES,
 } from "../data/seedData";
 import useLiveStorage from "../hooks/useLiveStorage";
-import useReveal from "../hooks/useReveal";
+import useSectionTheme from "../hooks/useSectionTheme";
+import FilterBar from "./FilterBar";
+import GalleryTile, { PAGE_SIZE, tileShape } from "./GalleryTile";
 import Icon from "./Icons";
-import RevealCard from "./RevealCard";
+import Lightbox from "./Lightbox";
+import Reveal from "./Reveal";
+import SectionHeader from "./SectionHeader";
+import { SectionError, SkeletonGrid } from "./SectionStatus";
+import "../styles/sections.css";
 
-function ProjectsSkeleton() {
-  return (
-    <div className="grid cards-grid" aria-hidden="true">
-      {Array.from({ length: 6 }, (_, i) => (
-        <div className="skeleton-card" key={i} />
-      ))}
-    </div>
-  );
-}
+const ALL = "Tous";
 
 // videoType (explicitly set on upload/URL entry) takes priority, falling
 // back to inferring from whichever field is populated — for projects
@@ -36,203 +31,135 @@ function projectVideoType(project) {
   return null;
 }
 
-function ProjectVideo({ project }) {
+function projectMedia(project) {
   const videoType = projectVideoType(project);
-  if (videoType === "local" && project.video) {
-    return <video src={project.video} autoPlay muted loop playsInline />;
-  }
-  if (videoType === "url" && project.videoUrl) {
-    return (
-      <div className="media-embed">
-        <iframe src={project.videoUrl} title={project.title} allowFullScreen />
-      </div>
-    );
-  }
-  return null;
+  if (videoType === "local" && project.video) return [{ type: "video", src: project.video }];
+  if (videoType === "url" && project.videoUrl) return [{ type: "embed", src: project.videoUrl }];
+  return (project.images || []).filter(Boolean).map((src) => ({ type: "image", src }));
 }
 
 export default function Portfolio() {
-  const ref = useReveal();
   const { t } = useLanguage();
   const [projects] = useLiveStorage(loadProjects);
   const [status] = useLiveStorage(getProjectsStatus);
   const [visibility] = useLiveStorage(loadVisibility);
-  const [sectionThemes] = useLiveStorage(loadSectionThemes);
-  const [colorOverrides] = useLiveStorage(loadColorOverrides);
-  const [filter, setFilter] = useState("Tous");
-  const [selected, setSelected] = useState(null);
-  const [activeImg, setActiveImg] = useState(0);
-  const galleryRef = useRef(null);
+  const themeStyle = useSectionTheme("portfolio");
+  const [filter, setFilter] = useState(ALL);
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  const [open, setOpen] = useState(null); // { project, index }
+
+  const visibleProjects = useMemo(() => projects.filter((p) => p.visible !== false), [projects]);
+  const categories = useMemo(
+    () => SERVICE_CATEGORIES.filter((c) => visibleProjects.some((p) => p.category === c)),
+    [visibleProjects]
+  );
+  const activeFilter = filter === ALL || categories.includes(filter) ? filter : ALL;
+  const filtered = useMemo(
+    () => (activeFilter === ALL ? visibleProjects : visibleProjects.filter((p) => p.category === activeFilter)),
+    [visibleProjects, activeFilter]
+  );
+
+  const selectFilter = useCallback((f) => {
+    setFilter(f);
+    setLimit(PAGE_SIZE);
+  }, []);
+
+  const openProject = useCallback((project) => {
+    if (projectMedia(project).length) setOpen({ project, index: 0 });
+  }, []);
+  const closeLightbox = useCallback(() => setOpen(null), []);
+  const setLightboxIndex = useCallback((index) => setOpen((o) => o && { ...o, index }), []);
 
   if (!visibility.portfolio) return null;
 
-  const visibleProjects = projects.filter((p) => p.visible !== false);
-  const filters = ["Tous", ...SERVICE_CATEGORIES];
-  const filtered =
-    filter === "Tous"
-      ? visibleProjects
-      : visibleProjects.filter((p) => p.category === filter);
-
-  function openProject(p) {
-    setSelected(p);
-    setActiveImg(0);
-  }
-
-  function scrollToImage(idx) {
-    const gallery = galleryRef.current;
-    if (!gallery) return;
-    const clamped = Math.max(0, Math.min(idx, (selected?.images?.length || 1) - 1));
-    gallery.scrollTo({ left: clamped * gallery.clientWidth, behavior: "smooth" });
-    setActiveImg(clamped);
-  }
-
-  function onGalleryScroll(e) {
-    const gallery = e.target;
-    const idx = Math.round(gallery.scrollLeft / gallery.clientWidth);
-    if (idx !== activeImg) setActiveImg(idx);
-  }
+  const shown = filtered.slice(0, limit);
 
   return (
-    <section
-      id="portfolio"
-      className="section steel-texture"
-      ref={ref}
-      style={sectionThemeStyle(sectionThemes, "portfolio", colorOverrides)}
-    >
+    <section id="portfolio" className="section" style={themeStyle}>
       <div className="container">
-        <div className="section-header reveal">
-          <span className="section-tag">{t.portfolio.tag}</span>
-          <h2 className="section-title">
-            {t.portfolio.titleA} <span>{t.portfolio.titleAccent}</span> {t.portfolio.titleB}
-          </h2>
-          <p className="section-subtitle">{t.portfolio.subtitle}</p>
-        </div>
+        <SectionHeader
+          tag={t.portfolio.tag}
+          titleA={t.portfolio.titleA}
+          accent={t.portfolio.titleAccent}
+          titleB={t.portfolio.titleB}
+          subtitle={t.portfolio.subtitle}
+        />
 
-        <div className="portfolio__filters reveal">
-          {filters.map((f) => (
-            <button
-              key={f}
-              className={`filter-btn ${filter === f ? "active" : ""}`}
-              onClick={() => setFilter(f)}
-            >
-              {f === "Tous" ? t.portfolio.filterAll : f}
-            </button>
-          ))}
-        </div>
+        {categories.length > 0 && (
+          <FilterBar
+            options={[ALL, ...categories]}
+            value={activeFilter}
+            onChange={selectFilter}
+            labelFor={(f) => (f === ALL ? t.portfolio.filterAll : f)}
+          />
+        )}
 
         {status === "loading" ? (
-          <ProjectsSkeleton />
+          <SkeletonGrid count={6} className="gallery" />
         ) : status === "error" ? (
-          <div className="section-error">
-            <p>Impossible de charger les réalisations pour le moment.</p>
-            <button type="button" className="btn btn--secondary btn--sm" onClick={retryProjects}>
-              <Icon name="refreshCw" size={16} /> Réessayer
-            </button>
-          </div>
+          <SectionError onRetry={retryProjects} />
         ) : filtered.length === 0 ? (
           <div className="empty-state">{t.portfolio.emptyState}</div>
         ) : (
-          <div className="grid cards-grid">
-            {filtered.map((p, i) => {
-              const image = p.images?.[0];
-              return (
-                <RevealCard
-                  className="project-card"
-                  index={i % 3}
-                  key={p.id}
-                  onClick={() => openProject(p)}
-                >
-                  {image ? (
-                    <img src={image} alt={p.title} className="project-card__media" />
-                  ) : (
-                    <div className="project-card__placeholder">
-                      <Icon name={p.mediaType === "video" ? "video" : "image"} size={26} />
-                    </div>
-                  )}
-                  {p.mediaType === "video" && (
-                    <span className="project-card__play">
-                      <Icon name="video" size={16} />
-                    </span>
-                  )}
-                  {p.featured && (
-                    <span className="project-card__featured">
-                      <Icon name="star" size={12} filled />
-                    </span>
-                  )}
-                  <div className="project-card__overlay" />
-                  <div className="project-card__content">
-                    <span className="project-card__category">{p.category}</span>
-                    <h3 className="project-card__title">{p.title}</h3>
-                    <p className="project-card__meta">
-                      {[p.client, p.year].filter(Boolean).join(" · ")}
-                    </p>
-                  </div>
-                </RevealCard>
-              );
-            })}
-          </div>
+          <>
+            <div className="gallery">
+              {shown.map((p, i) => {
+                const videoType = projectVideoType(p);
+                return (
+                  <Reveal key={p.id} delay={i % 3} className={`gallery__item ${tileShape(i)}`}>
+                    <GalleryTile
+                      item={p}
+                      image={p.images?.[0]}
+                      localVideo={videoType === "local" ? p.video : null}
+                      isVideo={p.mediaType === "video"}
+                      title={p.title}
+                      badge={p.category}
+                      meta={[p.client, p.year].filter(Boolean).join(" · ")}
+                      featured={p.featured}
+                      onOpen={openProject}
+                      openLabel={t.portfolio.viewProject}
+                    />
+                  </Reveal>
+                );
+              })}
+            </div>
+            {filtered.length > limit && (
+              <div className="load-more">
+                <button type="button" className="btn btn--ghost" onClick={() => setLimit((l) => l + PAGE_SIZE)}>
+                  <Icon name="plus" size={18} /> {t.common.loadMore}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {selected && (
-        <div className="modal-overlay" onClick={() => setSelected(null)}>
-          <div className="modal modal--wide" onClick={(e) => e.stopPropagation()}>
-            <button className="modal__close" onClick={() => setSelected(null)}>
-              <Icon name="close" size={18} />
-            </button>
-            {selected.mediaType === "video" && (selected.video || selected.videoUrl) ? (
-              <div className="modal__gallery">
-                <ProjectVideo project={selected} />
-              </div>
-            ) : (
-              <div className="modal__gallery-wrap">
-                <div className="modal__gallery" ref={galleryRef} onScroll={onGalleryScroll}>
-                  {(selected.images || []).map((img, idx) => (
-                    <div className="modal__gallery-item" key={idx}>
-                      <img src={img} alt={`${selected.title} ${idx + 1}`} />
-                    </div>
-                  ))}
-                </div>
-                {selected.images?.length > 1 && (
-                  <>
-                    <button
-                      className="hero__nav hero__nav--prev"
-                      onClick={() => scrollToImage(activeImg - 1)}
-                      aria-label="Image précédente"
-                    >
-                      <Icon name="chevronLeft" size={20} />
-                    </button>
-                    <button
-                      className="hero__nav hero__nav--next"
-                      onClick={() => scrollToImage(activeImg + 1)}
-                      aria-label="Image suivante"
-                    >
-                      <Icon name="chevronRight" size={20} />
-                    </button>
-                    <span className="modal__gallery-counter">
-                      {activeImg + 1} / {selected.images.length}
-                    </span>
-                  </>
-                )}
-              </div>
-            )}
-            <div className="modal__body">
-              <span className="project-card__category" style={{ marginBottom: 10 }}>
-                {selected.category}
-              </span>
-              <h3>{selected.title}</h3>
-              <div className="modal__meta">
+      {open && (
+        <Lightbox
+          items={projectMedia(open.project)}
+          index={open.index}
+          onIndex={setLightboxIndex}
+          onClose={closeLightbox}
+          label={open.project.title}
+        >
+          {open.project.category && <span className="chip">{open.project.category}</span>}
+          <h3>{open.project.title}</h3>
+          {(open.project.client || open.project.year) && (
+            <p className="lightbox__meta">
+              {open.project.client && (
                 <span>
-                  <Icon name="building" size={16} /> {selected.client}
+                  <Icon name="building" size={16} /> {open.project.client}
                 </span>
+              )}
+              {open.project.year && (
                 <span>
-                  <Icon name="clock" size={16} /> {selected.year}
+                  <Icon name="clock" size={16} /> {open.project.year}
                 </span>
-              </div>
-              <p>{selected.description}</p>
-            </div>
-          </div>
-        </div>
+              )}
+            </p>
+          )}
+          {open.project.description && <p>{open.project.description}</p>}
+        </Lightbox>
       )}
     </section>
   );

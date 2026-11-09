@@ -12,9 +12,13 @@ const ALLOWED_TYPES = [
   "image/svg+xml",
 ];
 const MAX_BYTES = 5 * 1024 * 1024;
-const MAX_DIMENSION = 800;
-const TARGET_COMPRESSED_BYTES = 500 * 1024;
-const QUALITY_STEPS = [0.6, 0.4, 0.3];
+// Every raster upload is re-encoded to WebP, at most 1200px on its larger
+// side, starting at quality 0.75 — then stepped down (quality first, then
+// dimensions) until it fits the 150KB budget the public site is tuned for.
+const MAX_DIMENSION = 1200;
+const TARGET_COMPRESSED_BYTES = 150 * 1024;
+const QUALITY_STEPS = [0.75, 0.65, 0.55, 0.45];
+const DIMENSION_STEPS = [1200, 1024, 800, 640];
 
 export const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/svg+xml";
 
@@ -51,13 +55,18 @@ function loadImage(src) {
   });
 }
 
+function canvasToBlob(canvas, type, quality) {
+  return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+}
+
 // SVGs are vector — rasterizing them through canvas would be a quality
 // regression, not a size win, so they pass through unchanged.
 //
-// Every other image is scaled so its larger dimension is at most 800px,
-// then re-encoded as JPEG starting at quality 0.6; if the result is still
-// over 500KB it retries at 0.4, then 0.3, keeping whichever attempt first
-// got under the target (or the smallest one achieved if none did).
+// Every other image is drawn at most `maxDimension`px on its larger side and
+// encoded as WebP at quality 0.75; while the result is over 150KB it retries
+// at lower quality, then at smaller dimensions, keeping the first attempt
+// that fits (or the smallest one achieved if none did). Browsers that can't
+// encode WebP (canvas silently returns PNG) fall back to JPEG.
 async function compressImage(file, { maxDimension = MAX_DIMENSION } = {}) {
   const original = await readAsDataURL(file);
   if (file.type === "image/svg+xml") {
@@ -65,37 +74,43 @@ async function compressImage(file, { maxDimension = MAX_DIMENSION } = {}) {
   }
 
   const img = await loadImage(original);
-  const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
-  const width = Math.round(img.width * scale);
-  const height = Math.round(img.height * scale);
-
+  const longest = Math.max(img.width, img.height);
+  // Never upscale, and never re-encode the same size twice.
+  const dimensions = [
+    ...new Set(DIMENSION_STEPS.filter((d) => d <= maxDimension).map((d) => Math.min(d, longest))),
+  ];
   const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
   const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, 0, 0, width, height);
 
-  let dataUrl = null;
-  let blob = null;
-  for (const quality of QUALITY_STEPS) {
-    const candidateDataUrl = canvas.toDataURL("image/jpeg", quality);
-    const candidateBlob = await new Promise((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", quality)
-    );
-    const candidateSize = candidateBlob ? candidateBlob.size : candidateDataUrl.length * 0.75;
-    if (!dataUrl || candidateSize < (blob ? blob.size : Infinity)) {
-      dataUrl = candidateDataUrl;
-      blob = candidateBlob;
+  let type = "image/webp";
+  let best = null;
+
+  outer: for (const dimension of dimensions) {
+    const scale = dimension / longest;
+    canvas.width = Math.round(img.width * scale);
+    canvas.height = Math.round(img.height * scale);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    for (const quality of QUALITY_STEPS) {
+      let blob = await canvasToBlob(canvas, type, quality);
+      if (blob && blob.type !== type) {
+        type = "image/jpeg";
+        blob = await canvasToBlob(canvas, type, quality);
+      }
+      if (!blob) continue;
+      if (!best || blob.size < best.size) best = blob;
+      if (blob.size <= TARGET_COMPRESSED_BYTES) break outer;
     }
-    if (candidateSize <= TARGET_COMPRESSED_BYTES) break;
   }
 
-  const compressedFile = blob
-    ? new File([blob], (file.name || "image").replace(/\.[^.]+$/, "") + ".jpg", {
-        type: "image/jpeg",
-      })
-    : file;
+  if (!best) return { dataUrl: original, file };
 
+  const ext = best.type === "image/webp" ? ".webp" : ".jpg";
+  const compressedFile = new File([best], (file.name || "image").replace(/\.[^.]+$/, "") + ext, {
+    type: best.type,
+  });
+  const dataUrl = await readAsDataURL(compressedFile);
   return { dataUrl, file: compressedFile };
 }
 

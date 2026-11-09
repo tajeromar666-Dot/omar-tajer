@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { loadAdminCredentials, STORAGE_KEYS } from "../data/seedData";
-import { isSupabaseConnected, supabase } from "../supabase";
+import { getSupabase, isSupabaseConnected } from "../supabase";
 
 const AuthContext = createContext(null);
 
@@ -49,7 +49,10 @@ export function AuthProvider({ children }) {
     async function init() {
       if (isSupabaseConnected) {
         try {
-          const { data, error } = await withTimeout(supabase.auth.getSession(), AUTH_TIMEOUT_MS);
+          const { data, error } = await withTimeout(
+            getSupabase().then((supabase) => supabase.auth.getSession()),
+            AUTH_TIMEOUT_MS
+          );
           if (!cancelled && !error && data?.session) {
             setUser({ email: data.session.user.email });
             setSource("supabase");
@@ -77,7 +80,9 @@ export function AuthProvider({ children }) {
 
     let subscription;
     if (isSupabaseConnected) {
-      try {
+      // Subscribed once the (lazily loaded) client is ready.
+      getSupabase().then((supabase) => {
+        if (cancelled) return;
         const { data } = supabase.auth.onAuthStateChange((_event, session) => {
           if (session) {
             setUser({ email: session.user.email });
@@ -91,9 +96,9 @@ export function AuthProvider({ children }) {
           }
         });
         subscription = data?.subscription;
-      } catch (err) {
+      }).catch((err) => {
         console.error("AuthContext: onAuthStateChange subscription failed", err);
-      }
+      });
     }
 
     return () => {
@@ -106,7 +111,7 @@ export function AuthProvider({ children }) {
     if (isSupabaseConnected) {
       try {
         const { data, error } = await withTimeout(
-          supabase.auth.signInWithPassword({ email, password }),
+          getSupabase().then((supabase) => supabase.auth.signInWithPassword({ email, password })),
           AUTH_TIMEOUT_MS
         );
         if (!error && data?.session) {
@@ -156,6 +161,7 @@ export function AuthProvider({ children }) {
   async function logout() {
     if (isSupabaseConnected && authSourceRef.current === "supabase") {
       try {
+        const supabase = await getSupabase();
         await supabase.auth.signOut();
       } catch (err) {
         console.error("AuthContext: signOut failed", err);

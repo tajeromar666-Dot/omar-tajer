@@ -16,6 +16,10 @@ export default function useLiveStorage(loader) {
     }
     window.addEventListener(DATA_CHANGE_EVENT, onChange);
     window.addEventListener("storage", onChange);
+    // Catch any change that landed between the first render and this
+    // subscription (e.g. an async local read finishing first) — effects can
+    // run a frame after render, so that event would otherwise be missed.
+    refresh();
     return () => {
       window.removeEventListener(DATA_CHANGE_EVENT, onChange);
       window.removeEventListener("storage", onChange);

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { loadAdminCredentials, saveAdminCredentials } from "../data/seedData";
-import { isSupabaseConnected, supabase } from "../supabase";
+import { getSupabase, isSupabaseConnected } from "../supabase";
 import { useAuth } from "../context/AuthContext.jsx";
 import Icon from "../components/Icons";
 
@@ -45,6 +45,7 @@ export default function SecurityPanel() {
     // to the legacy local comparison/save when not using a Supabase session.
     if (isSupabaseConnected && authSource === "supabase") {
       try {
+        const supabase = await getSupabase();
         const { error: reauthError } = await supabase.auth.signInWithPassword({
           email: currentEmail,
           password: currentPassword,

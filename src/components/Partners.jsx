@@ -1,52 +1,46 @@
 import { useLanguage } from "../context/LanguageContext.jsx";
-import {
-  loadColorOverrides,
-  loadPartners,
-  loadSectionThemes,
-  loadVisibility,
-  sectionThemeStyle,
-} from "../data/seedData";
+import { getPartnersStatus, loadPartners, loadVisibility, retryPartners } from "../data/seedData";
 import useLiveStorage from "../hooks/useLiveStorage";
-import useReveal from "../hooks/useReveal";
+import useSectionTheme from "../hooks/useSectionTheme";
+import Reveal from "./Reveal";
+import SectionHeader from "./SectionHeader";
+import { SectionError, SkeletonGrid } from "./SectionStatus";
+import SmartImage from "./SmartImage";
+import "../styles/sections.css";
 
 export default function Partners() {
-  const ref = useReveal();
   const { t } = useLanguage();
   const [partners] = useLiveStorage(loadPartners);
+  const [status] = useLiveStorage(getPartnersStatus);
   const [visibility] = useLiveStorage(loadVisibility);
-  const [sectionThemes] = useLiveStorage(loadSectionThemes);
-  const [colorOverrides] = useLiveStorage(loadColorOverrides);
+  const themeStyle = useSectionTheme("partners");
 
   if (!visibility.partners) return null;
 
   return (
-    <section
-      id="partners"
-      className="section partners"
-      ref={ref}
-      style={sectionThemeStyle(sectionThemes, "partners", colorOverrides)}
-    >
+    <section id="partners" className="section" style={themeStyle}>
       <div className="container">
-        <div className="section-header reveal">
-          <span className="section-tag">{t.partners.tag}</span>
-          <h2 className="section-title">
-            {t.partners.titleA} <span>{t.partners.titleAccent}</span> {t.partners.titleB}
-          </h2>
-          <p className="section-subtitle">{t.partners.subtitle}</p>
-        </div>
+        <SectionHeader
+          tag={t.partners.tag}
+          titleA={t.partners.titleA}
+          accent={t.partners.titleAccent}
+          titleB={t.partners.titleB}
+          subtitle={t.partners.subtitle}
+        />
 
-        <div className="partners__grid">
-          {partners.map((p, i) => (
-            <div
-              className="partner-logo fade-up"
-              style={{ animationDelay: `${i * 0.06}s` }}
-              key={p.id}
-              title={p.name}
-            >
-              <img src={p.logo} alt={p.name} />
-            </div>
-          ))}
-        </div>
+        {status === "loading" && !partners.length ? (
+          <SkeletonGrid count={6} className="partners__grid" />
+        ) : status === "error" && !partners.length ? (
+          <SectionError onRetry={retryPartners} />
+        ) : (
+          <ul className="partners__grid">
+            {partners.map((p, i) => (
+              <Reveal as="li" key={p.id} delay={i % 6} className="partner" title={p.name}>
+                <SmartImage src={p.logo} alt={p.name} width={240} height={120} fit="contain" sizes="200px" widths={[240, 480]} />
+              </Reveal>
+            ))}
+          </ul>
+        )}
       </div>
     </section>
   );

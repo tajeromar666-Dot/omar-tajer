@@ -15,7 +15,16 @@ import {
   loadSpacing,
   loadTheme,
 } from "./data/seedData";
-import "./index.css";
+import siteCss from "./styles/site.css?inline";
+
+// Core public-site styles (navbar, hero, buttons...). They ride in this
+// bundle rather than a separate stylesheet request: applied synchronously
+// here, before the first React render, so nothing ever renders unstyled
+// and no stylesheet blocks the first paint (the inline shell CSS in
+// index.html covers that).
+const coreStyle = document.createElement("style");
+coreStyle.textContent = siteCss;
+document.head.appendChild(coreStyle);
 
 // Apply any saved theme/section-color/spacing/language overrides before the
 // first paint so there's no flash of the default colors, spacing, or text

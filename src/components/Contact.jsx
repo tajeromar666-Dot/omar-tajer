@@ -2,40 +2,54 @@ import { useState } from "react";
 import { useLanguage } from "../context/LanguageContext.jsx";
 import {
   LEGAL_INFO_FIELDS,
-  loadColorOverrides,
   loadLegalInfo,
   loadLocations,
   loadMaps,
   loadMessages,
-  loadSectionThemes,
   loadSettings,
   loadVisibility,
   saveMessages,
-  sectionThemeStyle,
 } from "../data/seedData";
 import useLiveStorage from "../hooks/useLiveStorage";
-import useReveal from "../hooks/useReveal";
+import useSectionTheme from "../hooks/useSectionTheme";
 import Icon from "./Icons";
+import Reveal from "./Reveal";
+import SectionHeader from "./SectionHeader";
+import "../styles/sections.css";
 
 const EMPTY_FORM = { name: "", email: "", phone: "", message: "" };
+const tel = (n) => `tel:${n.replace(/\s/g, "")}`;
+
+function Field({ id, label, error, children }) {
+  return (
+    <div className={`field${error ? " has-error" : ""}`}>
+      <label htmlFor={id}>{label}</label>
+      {children}
+      {error && (
+        <span className="field__error" id={`${id}-error`}>
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function Contact() {
-  const ref = useReveal();
   const { t } = useLanguage();
-  const [settings] = useState(loadSettings());
+  const [settings] = useLiveStorage(loadSettings);
   const [maps] = useLiveStorage(loadMaps);
   const [locations] = useLiveStorage(loadLocations);
   const [legalInfo] = useLiveStorage(loadLegalInfo);
+  const [visibility] = useLiveStorage(loadVisibility);
+  const themeStyle = useSectionTheme("contact");
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [errors, setErrors] = useState({});
+  const [sent, setSent] = useState(false);
+
   const activeLocations = locations.filter((l) => l.active);
   const activeLegalFields = LEGAL_INFO_FIELDS.filter(
     (f) => legalInfo[f.key]?.enabled && legalInfo[f.key]?.value?.trim()
   );
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [errors, setErrors] = useState({});
-  const [sent, setSent] = useState(false);
-  const [visibility] = useLiveStorage(loadVisibility);
-  const [sectionThemes] = useLiveStorage(loadSectionThemes);
-  const [colorOverrides] = useLiveStorage(loadColorOverrides);
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -72,50 +86,54 @@ export default function Contact() {
 
   if (!visibility.contact) return null;
 
-  return (
-    <section id="contact" className="section" ref={ref} style={sectionThemeStyle(sectionThemes, "contact", colorOverrides)}>
-      <div className="container">
-        <div className="section-header reveal">
-          <span className="section-tag">{t.contact.tag}</span>
-          <h2 className="section-title">
-            {t.contact.titleA} <span>{t.contact.titleAccent}</span> {t.contact.titleB}
-          </h2>
-          <p className="section-subtitle">{t.contact.subtitle}</p>
-        </div>
+  const inputProps = (field) => ({
+    id: field,
+    value: form[field],
+    onChange: (e) => update(field, e.target.value),
+    "aria-invalid": errors[field] ? true : undefined,
+    "aria-describedby": errors[field] ? `${field}-error` : undefined,
+  });
 
-        <div className="contact__grid">
-          <div className="reveal">
-            <div className="contact-info__item">
-              <span className="contact-info__icon">
+  return (
+    <section id="contact" className="section" style={themeStyle}>
+      <div className="container">
+        <SectionHeader
+          tag={t.contact.tag}
+          titleA={t.contact.titleA}
+          accent={t.contact.titleAccent}
+          titleB={t.contact.titleB}
+          subtitle={t.contact.subtitle}
+        />
+
+        <div className="contact">
+          <Reveal className="contact__info">
+            <div className="info card">
+              <span className="icon-chip">
                 <Icon name="mapPin" size={20} />
               </span>
               <div>
-                <h4>{t.contact.addressLabel}</h4>
+                <h3>{t.contact.addressLabel}</h3>
                 <p>{settings.address}</p>
               </div>
             </div>
-            <div className="contact-info__item">
-              <span className="contact-info__icon">
+            <div className="info card">
+              <span className="icon-chip">
                 <Icon name="phone" size={20} />
               </span>
               <div>
-                <h4>{t.contact.phoneLabel}</h4>
-                <a href={`tel:${settings.phone1.replace(/\s/g, "")}`}>
-                  {settings.phone1}
-                </a>
-                <a href={`tel:${settings.phone2.replace(/\s/g, "")}`}>
-                  {settings.phone2}
-                </a>
+                <h3>{t.contact.phoneLabel}</h3>
+                {settings.phone1 && <a href={tel(settings.phone1)}>{settings.phone1}</a>}
+                {settings.phone2 && <a href={tel(settings.phone2)}>{settings.phone2}</a>}
               </div>
             </div>
-            <div className="contact-info__item">
-              <span className="contact-info__icon">
+            <div className="info card">
+              <span className="icon-chip">
                 <Icon name="mail" size={20} />
               </span>
               <div>
-                <h4>{t.contact.emailLabel}</h4>
-                <a href={`mailto:${settings.email1}`}>{settings.email1}</a>
-                <a href={`mailto:${settings.email2}`}>{settings.email2}</a>
+                <h3>{t.contact.emailLabel}</h3>
+                {settings.email1 && <a href={`mailto:${settings.email1}`}>{settings.email1}</a>}
+                {settings.email2 && <a href={`mailto:${settings.email2}`}>{settings.email2}</a>}
               </div>
             </div>
 
@@ -131,113 +149,84 @@ export default function Contact() {
             )}
 
             {activeLegalFields.length > 0 && (
-              <div className="legal-info">
+              <p className="legal">
                 {activeLegalFields.map((f) => (
                   <span key={f.key}>
-                    <strong>{f.label}:</strong> {legalInfo[f.key].value}
+                    <strong>{f.label}</strong> {legalInfo[f.key].value}
                   </span>
                 ))}
+              </p>
+            )}
+          </Reveal>
+
+          <Reveal className="contact__form card" delay={1}>
+            {sent && (
+              <div className="form-success" role="status">
+                <Icon name="checkCircle" size={20} /> {t.contact.successMessage}
               </div>
             )}
-          </div>
-
-          <div className="contact-form reveal reveal-delay-1">
-            {sent && <div className="form-success">{t.contact.successMessage}</div>}
             <form onSubmit={handleSubmit} noValidate>
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="name">{t.contact.formNameLabel}</label>
+              <div className="field-row">
+                <Field id="name" label={t.contact.formNameLabel} error={errors.name}>
+                  <input type="text" autoComplete="name" placeholder={t.contact.formNamePlaceholder} {...inputProps("name")} />
+                </Field>
+                <Field id="phone" label={t.contact.formPhoneLabel} error={errors.phone}>
                   <input
-                    id="name"
-                    type="text"
-                    value={form.name}
-                    onChange={(e) => update("name", e.target.value)}
-                    placeholder={t.contact.formNamePlaceholder}
-                  />
-                  {errors.name && <span className="form-error">{errors.name}</span>}
-                </div>
-                <div className="form-group">
-                  <label htmlFor="phone">{t.contact.formPhoneLabel}</label>
-                  <input
-                    id="phone"
-                    type="text"
-                    value={form.phone}
-                    onChange={(e) => update("phone", e.target.value)}
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
                     placeholder={t.contact.formPhonePlaceholder}
+                    {...inputProps("phone")}
                   />
-                  {errors.phone && <span className="form-error">{errors.phone}</span>}
-                </div>
+                </Field>
               </div>
-
-              <div className="form-group">
-                <label htmlFor="email">{t.contact.formEmailLabel}</label>
-                <input
-                  id="email"
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => update("email", e.target.value)}
-                  placeholder={t.contact.formEmailPlaceholder}
-                />
-                {errors.email && <span className="form-error">{errors.email}</span>}
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="message">{t.contact.formMessageLabel}</label>
-                <textarea
-                  id="message"
-                  value={form.message}
-                  onChange={(e) => update("message", e.target.value)}
-                  placeholder={t.contact.formMessagePlaceholder}
-                />
-                {errors.message && (
-                  <span className="form-error">{errors.message}</span>
-                )}
-              </div>
-
-              <button type="submit" className="btn btn--primary btn--block">
-                {t.contact.submitBtn} <Icon name="send" size={16} />
+              <Field id="email" label={t.contact.formEmailLabel} error={errors.email}>
+                <input type="email" autoComplete="email" placeholder={t.contact.formEmailPlaceholder} {...inputProps("email")} />
+              </Field>
+              <Field id="message" label={t.contact.formMessageLabel} error={errors.message}>
+                <textarea rows={5} placeholder={t.contact.formMessagePlaceholder} {...inputProps("message")} />
+              </Field>
+              <button type="submit" className="btn btn--primary btn--block btn--lg">
+                {t.contact.submitBtn} <Icon name="send" size={16} className="btn__arrow" />
               </button>
             </form>
-          </div>
+          </Reveal>
         </div>
 
         {activeLocations.length > 0 && (
-          <div className="locations-block reveal">
-            <h3 className="locations-block__title">{t.contact.locationsTitle}</h3>
-            <div className="locations-grid">
-              {activeLocations.map((l) => (
-                <div className="location-card" key={l.id}>
-                  <div className="location-card__body">
-                    <h4>{l.name}</h4>
-                    {l.address && (
-                      <p>
-                        <Icon name="mapPin" size={15} /> {l.address}
-                      </p>
-                    )}
-                    {l.phone && (l.showPhone ?? true) && (
-                      <p>
-                        <Icon name="phone" size={15} />{" "}
-                        <a href={`tel:${l.phone.replace(/\s/g, "")}`}>{l.phone}</a>
-                      </p>
-                    )}
-                    {l.email && (l.showEmail ?? true) && (
-                      <p>
-                        <Icon name="mail" size={15} />{" "}
-                        <a href={`mailto:${l.email}`}>{l.email}</a>
-                      </p>
-                    )}
-                  </div>
-                  {l.mapUrl && (l.showMap ?? true) && (
-                    <div className="location-card__map">
-                      <iframe
-                        title={l.name}
-                        src={l.mapUrl}
-                        loading="lazy"
-                        referrerPolicy="no-referrer-when-downgrade"
-                      />
+          <div className="locations">
+            <Reveal as="h3" className="locations__title">
+              {t.contact.locationsTitle}
+            </Reveal>
+            <div className="locations__grid">
+              {activeLocations.map((l, i) => (
+                <Reveal key={l.id} delay={i % 3}>
+                  <article className="location card">
+                    <div className="location__body">
+                      <h4>{l.name}</h4>
+                      {l.address && (
+                        <p>
+                          <Icon name="mapPin" size={15} /> {l.address}
+                        </p>
+                      )}
+                      {l.phone && (l.showPhone ?? true) && (
+                        <p>
+                          <Icon name="phone" size={15} /> <a href={tel(l.phone)}>{l.phone}</a>
+                        </p>
+                      )}
+                      {l.email && (l.showEmail ?? true) && (
+                        <p>
+                          <Icon name="mail" size={15} /> <a href={`mailto:${l.email}`}>{l.email}</a>
+                        </p>
+                      )}
                     </div>
-                  )}
-                </div>
+                    {l.mapUrl && (l.showMap ?? true) && (
+                      <div className="location__map">
+                        <iframe title={l.name} src={l.mapUrl} loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
+                      </div>
+                    )}
+                  </article>
+                </Reveal>
               ))}
             </div>
           </div>

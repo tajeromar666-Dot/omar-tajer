@@ -2,12 +2,74 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>CIA — Construction Industrielle Africaine</title>
     <meta name="description" content="CIA - Construction Industrielle Africaine : Génie civil, charpente métallique, chaudronnerie, tuyauterie industrielle, sablage et peinture four. Mediouna, Casablanca." />
+    <meta name="theme-color" content="#0a0a0f" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="CIA — Construction Industrielle Africaine" />
+    <meta property="og:description" content="Génie civil, charpente métallique, chaudronnerie, tuyauterie industrielle, sablage et peinture four — Mediouna, Casablanca." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0a0f'/%3E%3Cpath d='M14 46V26l18-10 18 10v20' fill='none' stroke='%23ff6b35' stroke-width='5' stroke-linejoin='round'/%3E%3Crect x='27' y='32' width='10' height='14' fill='%23f4b400'/%3E%3C/svg%3E" />
+
+    <!-- Self-hosted fonts (latin subset, woff2): Inter 400/600 (one variable
+         file) + Montserrat 800. The hero title font is preloaded. -->
+    <link rel="preload" href="/fonts/montserrat-800-latin-v1.woff2" as="font" type="font/woff2" crossorigin />
+
+    <!--hero-prefetch-->
+
+    <script>
+      // The static shell below is the public home page's first paint — never
+      // show it on admin routes.
+      var isAdmin = location.pathname.indexOf("/admin") === 0;
+      if (isAdmin) document.documentElement.className += " is-admin";
+      // Runs `cb` once the shell's first contentful paint has happened, so
+      // nothing requested by the app competes with it. Admin pages have no
+      // shell and start right away; 1.5s is a safety net.
+      window.__afterFirstPaint = function (cb) {
+        var done = 0;
+        function run() { if (!done) { done = 1; cb(); } }
+        if (isAdmin) return run();
+        try {
+          new PerformanceObserver(function (list) {
+            if (list.getEntriesByName("first-contentful-paint").length) setTimeout(run, 0);
+          }).observe({ type: "paint", buffered: true });
+        } catch (e) {}
+        setTimeout(run, 1500);
+      };
+    </script>
+
+    <!-- Critical CSS: the static navbar + hero skeleton below paints from this
+         alone, before any JS runs. The full core stylesheet (site.css) ships
+         inside the app bundle and is applied just before React mounts. -->
+    <style>
+      @font-face{font-family:Inter;font-style:normal;font-weight:400 600;font-display:swap;src:url(/fonts/inter-var-latin-v1.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+      @font-face{font-family:Montserrat;font-style:normal;font-weight:800;font-display:swap;src:url(/fonts/montserrat-800-latin-v1.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+      @font-face{font-family:"Montserrat Fallback";src:local("Arial Bold"),local("Arial-BoldMT"),local("Arial");font-weight:600 900;ascent-override:85.8%;descent-override:22.2%;line-gap-override:0%;size-adjust:118%}
+      @font-face{font-family:"Inter Fallback";src:local("Arial"),local("ArialMT");font-weight:100 600;ascent-override:90.4%;descent-override:22.5%;line-gap-override:0%;size-adjust:107.1%}
+      html{background:#0a0a0f;-webkit-text-size-adjust:100%}
+      body{margin:0;background:#0a0a0f;color:#fff;font-family:Inter,"Inter Fallback",system-ui,-apple-system,"Segoe UI",Roboto,Tahoma,sans-serif;-webkit-font-smoothing:antialiased}
+      html.is-admin,.is-admin body{background:#fff}
+      .is-admin .shell{display:none}
+      .shell{min-height:100vh;min-height:100svh;display:flex;flex-direction:column;background:radial-gradient(120% 80% at 80% 0%,rgba(255,107,53,.18),transparent 55%),linear-gradient(180deg,#12121c 0%,#0a0a0f 100%)}
+      .shell-nav{position:fixed;inset:0 0 auto;height:72px;display:flex;align-items:center;padding:0 clamp(16px,4vw,32px);background:rgba(10,10,15,.82);z-index:10}
+      .shell-logo{font:800 1.4rem/1 Montserrat,"Montserrat Fallback","Segoe UI",Arial,sans-serif;letter-spacing:.06em;color:#fff}
+      .shell-logo span{color:#ff6b35}
+      .shell-hero{flex:1;display:flex;flex-direction:column;justify-content:center;padding:96px clamp(16px,4vw,32px) 64px;max-width:1240px;width:100%;margin:0 auto;box-sizing:border-box}
+      .shell-bar{width:56px;height:4px;border-radius:4px;background:linear-gradient(90deg,#ff6b35,#f4b400);margin-bottom:24px}
+      .shell-title{margin:0;max-width:11.5em;font:800 clamp(2.4rem,5.2vw + 1rem,5.6rem)/1.04 Montserrat,"Montserrat Fallback","Segoe UI",Arial,sans-serif;letter-spacing:-.02em;color:#fff}
+      .shell-title span{background:linear-gradient(90deg,#ff6b35,#f4b400);-webkit-background-clip:text;background-clip:text;color:transparent}
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="shell">
+        <div class="shell-nav"><span class="shell-logo">CI<span>A</span></span></div>
+        <div class="shell-hero">
+          <div class="shell-bar"></div>
+          <h1 class="shell-title">Construction Industrielle <span>Africaine</span></h1>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

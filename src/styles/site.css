@@ -1,0 +1,900 @@
+/* ==========================================================================
+   CIA — public site, core styles: tokens, base, buttons, navbar, hero,
+   images, floating buttons. Bundled into the entry JS (main.jsx imports it
+   with ?inline and applies it before React mounts). Section styles live in
+   sections.css and arrive with each lazy section chunk. Everything is scoped under .site so none of it
+   can leak into the admin, which keeps its own admin.css.
+
+   Color layering, highest priority first, per section:
+     --guard-<section>-*      contrast fixes computed in utils/siteTheme.js
+     --section-<key>-*        "Couleurs des Sections" (set on :root)
+     --sec-*                  per-section theme preset (inline on the section)
+     design tokens below      (or the admin's site-wide theme: .site--themed)
+   ========================================================================== */
+
+.site {
+  --bg: #0a0a0f;
+  --bg-2: #1a1a2e;
+  --bg-deep: #07070b;
+  --accent: #ff6b35;
+  --accent-2: #f4b400;
+  --on-accent: #1a1a2e;
+  --text: #ffffff;
+  --text-2: #c9cbd8;
+  --text-3: #9fa2b6;
+
+  --glass: rgba(255, 255, 255, 0.045);
+  --glass-strong: rgba(16, 16, 26, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --nav-bg: rgba(10, 10, 15, 0.5);
+  --nav-bg-solid: rgba(10, 10, 15, 0.82);
+
+  --font-head: "Montserrat", "Montserrat Fallback", "Segoe UI", system-ui, -apple-system, Tahoma, Arial, sans-serif;
+  --font-body: "Inter", "Inter Fallback", system-ui, -apple-system, "Segoe UI", Roboto, Tahoma, Arial, sans-serif;
+
+  --radius: 18px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --nav-h: 72px;
+  --site-pad: clamp(72px, 9vw, 128px);
+  --gutter: clamp(16px, 4vw, 32px);
+}
+
+/* Site-wide theme picked in the admin (Apparence) — only when it differs
+   from the stock defaults (see isCustomTheme in utils/siteTheme.js). */
+.site.site--themed {
+  --bg: var(--color-dark);
+  --bg-2: var(--color-panel);
+  --bg-deep: var(--color-dark);
+  --accent: var(--color-blue);
+  --accent-2: var(--color-yellow);
+  --text: var(--color-text);
+  --text-2: color-mix(in srgb, var(--color-text) 80%, var(--color-dark));
+  --text-3: color-mix(in srgb, var(--color-text) 66%, var(--color-dark));
+  --nav-bg: color-mix(in srgb, var(--color-dark) 55%, transparent);
+  --nav-bg-solid: color-mix(in srgb, var(--color-dark) 85%, transparent);
+}
+
+/* ---------------------------------- Base -------------------------------- */
+html {
+  scroll-padding-top: 80px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.site) {
+    scroll-behavior: smooth;
+  }
+}
+
+.site {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text-2);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.65;
+  overflow-x: hidden;
+  overflow-x: clip;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.site *,
+.site *::before,
+.site *::after {
+  box-sizing: border-box;
+}
+.site :where(h1, h2, h3, h4, p, figure, blockquote, ul, ol) {
+  margin: 0;
+  padding: 0;
+}
+.site :where(ul, ol) {
+  list-style: none;
+}
+.site :where(img, video, iframe, svg) {
+  display: block;
+  max-width: 100%;
+}
+.site :where(iframe) {
+  border: 0;
+}
+.site :where(a) {
+  color: inherit;
+  text-decoration: none;
+}
+.site :where(button) {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.site :where(input, textarea, select) {
+  font: inherit;
+}
+.site :focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 3px;
+}
+.site ::selection {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.site .container {
+  width: 100%;
+  max-width: 1240px;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* --------------------------------- Buttons ------------------------------ */
+.site .btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 24px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font: 600 0.95rem/1 var(--font-body);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease), background-color 0.3s, border-color 0.3s, color 0.3s;
+}
+.site .btn--sm {
+  min-height: 44px;
+  padding: 0 18px;
+  font-size: 0.875rem;
+}
+.site .btn--lg {
+  min-height: 54px;
+  padding: 0 30px;
+  font-size: 1rem;
+}
+.site .btn--block {
+  width: 100%;
+}
+.site .btn--primary {
+  background: linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 72%, var(--accent-2)) 100%);
+  background-color: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 10px 30px -12px var(--accent);
+}
+.site .btn--glass {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.site .btn--ghost {
+  border-color: color-mix(in srgb, var(--s-accent, var(--accent)) 55%, transparent);
+  color: var(--s-title, var(--text));
+}
+.site .btn__arrow {
+  transition: translate 0.3s var(--ease);
+}
+[dir="rtl"] .site .btn__arrow {
+  transform: scaleX(-1);
+}
+@media (hover: hover) {
+  .site .btn:hover {
+    transform: translateY(-2px);
+  }
+  .site .btn--primary:hover {
+    box-shadow: 0 16px 40px -12px var(--accent), 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  .site .btn--glass:hover {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.32);
+  }
+  .site .btn--ghost:hover {
+    background: color-mix(in srgb, var(--s-accent, var(--accent)) 14%, transparent);
+  }
+  .site .btn:hover .btn__arrow {
+    translate: 4px 0;
+  }
+  [dir="rtl"] .site .btn:hover .btn__arrow {
+    translate: -4px 0;
+  }
+}
+.site .btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+[dir="rtl"] .site .hero__arrow svg {
+  transform: scaleX(-1);
+}
+
+/* ---------------------------------- Navbar ------------------------------ */
+.site .nav {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 100;
+  height: var(--nav-h);
+  display: flex;
+  align-items: center;
+  background: var(--nav-bg);
+  border-bottom: 1px solid transparent;
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+  transition: background-color 0.3s, border-color 0.3s;
+}
+.site .nav.is-scrolled {
+  background: var(--nav-bg-solid);
+  border-bottom-color: var(--glass-border);
+}
+.site .nav__inner {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.site .nav__logo {
+  flex: none;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+.site .nav__logo img {
+  height: 44px;
+  width: auto;
+  max-width: 150px;
+  object-fit: contain;
+}
+.site .nav__links {
+  display: none;
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+.site .nav__link {
+  padding: 10px 10px;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--text-2);
+  transition: color 0.2s, background-color 0.2s;
+}
+.site .nav__link:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.07);
+}
+.site .nav__actions {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.site .nav__cta {
+  display: none;
+}
+.site .nav__toggle {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass);
+}
+.site .nav__toggle span {
+  position: absolute;
+  inset-inline-start: 12px;
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--text);
+  transition: transform 0.3s var(--ease), opacity 0.2s;
+}
+.site .nav__toggle span:nth-child(1) { top: 15px; }
+.site .nav__toggle span:nth-child(2) { top: 21px; }
+.site .nav__toggle span:nth-child(3) { top: 27px; }
+.site .nav__toggle.is-open span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.site .nav__toggle.is-open span:nth-child(2) { opacity: 0; }
+.site .nav__toggle.is-open span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+@media (min-width: 640px) {
+  .site .nav__cta {
+    display: inline-flex;
+  }
+}
+@media (min-width: 1280px) {
+  .site .nav__links {
+    display: flex;
+  }
+  .site .nav__toggle {
+    display: none;
+  }
+  .site .nav__actions {
+    margin-inline-start: 0;
+  }
+}
+@media (min-width: 1280px) and (max-width: 1599px) {
+  /* The logo already links to the top — drop "Accueil" to keep one line. */
+  .site .nav__link:first-child {
+    display: none;
+  }
+}
+
+/* Mobile menu */
+.site .mobile-menu__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 98;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s, visibility 0.3s;
+}
+.site .mobile-menu__overlay.is-open {
+  opacity: 1;
+  visibility: visible;
+}
+.site .mobile-menu {
+  position: fixed;
+  top: 0;
+  inset-inline-end: 0;
+  z-index: 99;
+  width: min(86vw, 340px);
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: calc(var(--nav-h) + 16px) 24px calc(32px + env(safe-area-inset-bottom));
+  background: var(--glass-strong);
+  border-inline-start: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform 0.4s var(--ease), visibility 0.4s;
+}
+[dir="rtl"] .site .mobile-menu {
+  transform: translateX(-100%);
+}
+.site .mobile-menu.is-open {
+  transform: none;
+  visibility: visible;
+}
+.site .mobile-menu__link {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  border-bottom: 1px solid var(--glass-border);
+  font: 700 1.05rem/1.2 var(--font-head);
+  color: var(--text);
+}
+.site .mobile-menu__link:hover {
+  color: var(--accent);
+}
+
+/* Language switcher */
+.site .lang {
+  position: relative;
+}
+.site .lang__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+.site .lang__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  inset-inline-end: 0;
+  z-index: 10;
+  min-width: 180px;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+  background: rgba(16, 16, 26, 0.96);
+  box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.7);
+  animation: site-fade-up 0.2s var(--ease) both;
+}
+.site .lang__option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  text-align: start;
+  color: #e6e7ee;
+  font-size: 0.92rem;
+}
+.site .lang__option:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.site .lang__option.is-active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ----------------------------------- Hero ------------------------------- */
+.site #hero {
+  --s-bg-solid: var(--section-hero-bg, var(--sec-bg, var(--bg)));
+  --s-bg: var(--section-hero-bg, var(--sec-bg, radial-gradient(120% 80% at 80% 0%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 55%), linear-gradient(180deg, #12121c 0%, var(--bg) 100%)));
+  --s-title: var(--guard-hero-title, var(--section-hero-title, var(--sec-heading, var(--text))));
+  --s-text: var(--guard-hero-text, var(--section-hero-text, var(--sec-text-primary, var(--text-2))));
+  --s-accent: var(--guard-hero-accent, var(--section-hero-accent, var(--sec-accent, var(--accent))));
+  --s-accent-2: var(--guard-hero-accent, var(--section-hero-accent, var(--sec-accent, var(--accent-2))));
+  --s-icon: var(--section-hero-icon, var(--s-title));
+  --s-card: var(--section-hero-card-bg, var(--sec-panel, rgba(255, 255, 255, 0.06)));
+  --s-card-border: var(--section-hero-card-border, rgba(255, 255, 255, 0.14));
+}
+
+.site .hero {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  padding: calc(var(--nav-h) + 48px) 0 140px;
+  background: var(--s-bg-solid);
+  background: var(--s-bg);
+  color: var(--s-text);
+}
+@media (min-width: 641px) {
+  .site .hero {
+    padding-top: calc(var(--nav-h) + 48px + var(--section-hero-pt, 0px));
+    padding-bottom: calc(140px + var(--section-hero-pb, 0px));
+  }
+}
+.site .hero__media {
+  position: absolute;
+  inset: -6% 0;
+  z-index: -3;
+  will-change: transform;
+}
+.site .hero__slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+.site .hero__slide.is-active {
+  opacity: 1;
+}
+.site .hero__slide .smart-img {
+  width: 100%;
+  height: 100%;
+}
+.site .hero__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+.site .hero__video.is-ready {
+  opacity: 1;
+}
+/* Overlay tinted with the section background — dark by default, and if an
+   admin sets a light hero background, the overlay (and auto-contrast title)
+   follow, so the text over the photo stays readable either way. */
+.site .hero__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: linear-gradient(90deg, rgba(10, 10, 15, 0.9) 0%, rgba(10, 10, 15, 0.55) 55%, rgba(10, 10, 15, 0.25) 100%);
+  background:
+    linear-gradient(0deg, var(--s-bg-solid) 0%, transparent 38%),
+    linear-gradient(90deg, color-mix(in srgb, var(--s-bg-solid) 92%, transparent) 0%, color-mix(in srgb, var(--s-bg-solid) 60%, transparent) 55%, color-mix(in srgb, var(--s-bg-solid) 25%, transparent) 100%);
+}
+[dir="rtl"] .site .hero__overlay {
+  background:
+    linear-gradient(0deg, var(--s-bg-solid) 0%, transparent 38%),
+    linear-gradient(270deg, color-mix(in srgb, var(--s-bg-solid) 92%, transparent) 0%, color-mix(in srgb, var(--s-bg-solid) 60%, transparent) 55%, color-mix(in srgb, var(--s-bg-solid) 25%, transparent) 100%);
+}
+.site .hero__grid {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 64px 64px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 70% 30%, #000 0%, transparent 75%);
+  mask-image: radial-gradient(ellipse 70% 60% at 70% 30%, #000 0%, transparent 75%);
+}
+.site .hero__content {
+  position: relative;
+  z-index: 1;
+}
+.site .hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--s-card-border);
+  background: var(--s-card);
+  color: var(--s-title);
+  font: 600 0.75rem/1.4 var(--font-body);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  animation: site-fade-up 0.8s var(--ease) 0.1s both;
+}
+.site .hero__eyebrow-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--s-accent);
+  box-shadow: 0 0 0 0 var(--s-accent);
+  animation: site-pulse 2.4s ease-out infinite;
+}
+.site .hero__title {
+  margin: 24px 0 20px;
+  /* em, not ch: ch is measured from the font's "0" glyph and changes while
+     web-font subsets load, which re-wrapped the title (layout shift). */
+  max-width: 11.5em;
+  font: 800 clamp(2.4rem, 5.2vw + 1rem, 5.6rem) / 1.04 var(--font-head);
+  letter-spacing: -0.02em;
+  color: var(--s-title);
+  text-wrap: balance;
+  overflow-wrap: break-word;
+}
+.site :is(.hero__title .accent, .section-title span) {
+  color: var(--s-accent);
+  background: linear-gradient(90deg, var(--s-accent), var(--s-accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.site .hero__word {
+  display: inline-block;
+}
+.site .hero__title.is-animated .hero__word {
+  overflow: hidden;
+  vertical-align: top;
+  padding-bottom: 0.12em;
+  margin-bottom: -0.12em;
+}
+.site .hero__title.is-animated .hero__word > span {
+  display: inline-block;
+  animation: site-word-up 0.9s var(--ease) both;
+  animation-delay: calc(var(--i) * 70ms);
+}
+.site .hero__subtitle {
+  max-width: 36em;
+  font-size: clamp(1rem, 0.6vw + 0.9rem, 1.2rem);
+  color: var(--s-text);
+  animation: site-fade-up 0.8s var(--ease) 0.25s both;
+}
+.site .hero__ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 36px;
+  animation: site-fade-up 0.8s var(--ease) 0.4s both;
+}
+.site .hero__controls {
+  position: absolute;
+  bottom: 60px;
+  inset-inline-end: var(--gutter);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.site .hero__arrow {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(10, 10, 15, 0.4);
+  color: var(--s-icon);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition: background-color 0.25s, color 0.25s;
+}
+.site .hero__arrow:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.site .hero__dots {
+  display: flex;
+}
+.site :is(.hero__dot, .carousel__dot) {
+  position: relative;
+  width: 24px;
+  height: 44px;
+}
+.site :is(.hero__dot, .carousel__dot)::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--s-title, #fff) 35%, transparent);
+  transform: translate(-50%, -50%);
+  transition: width 0.3s var(--ease), background-color 0.3s;
+}
+.site :is(.hero__dot, .carousel__dot).is-active::before {
+  width: 20px;
+  background: var(--accent);
+}
+.site .hero__scroll {
+  position: absolute;
+  bottom: 56px;
+  left: 50%;
+  z-index: 2;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 44px;
+  transform: translateX(-50%);
+  color: var(--s-text);
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.site .hero__scroll-line {
+  position: relative;
+  width: 1px;
+  height: 44px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.18);
+}
+.site .hero__scroll-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent, var(--accent));
+  animation: site-scroll-line 2s ease-in-out infinite;
+}
+@media (min-width: 768px) {
+  .site .hero__scroll {
+    display: flex;
+  }
+}
+@media (max-width: 639px) {
+  .site .hero {
+    padding-bottom: 120px;
+  }
+  .site .hero__controls {
+    bottom: 52px;
+    inset-inline-end: 50%;
+    transform: translateX(50%);
+  }
+  [dir="rtl"] .site .hero__controls {
+    transform: translateX(-50%);
+  }
+  .site .hero__ctas .btn {
+    flex: 1 1 100%;
+  }
+}
+
+/* ------------------------------- Images ---------------------------------- */
+/* Blur-up: a blurred tiny preview (when Supabase transforms are on) or a
+   soft shimmer sits behind the image until it has decoded, then the image
+   fades + sharpens in. The hero image (priority) is shown immediately. */
+.site .smart-img {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: linear-gradient(110deg, rgba(255, 255, 255, 0.03) 30%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.03) 70%) 0 0 / 200% 100%;
+  animation: site-shimmer 1.6s linear infinite;
+}
+.site .smart-img::before {
+  content: "";
+  position: absolute;
+  inset: -20px;
+  background: var(--preview, none) center / cover no-repeat;
+  filter: blur(18px);
+}
+.site .smart-img picture {
+  display: contents;
+}
+.site .smart-img img {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transform: scale(1.04);
+  transition: opacity 0.6s ease, transform 0.7s var(--ease);
+}
+.site .smart-img.is-loaded {
+  background: none;
+  animation: none;
+}
+.site .smart-img.is-loaded::before {
+  display: none;
+}
+.site .smart-img.is-loaded img,
+.site .smart-img--priority img {
+  opacity: 1;
+  transform: none;
+}
+
+/* ------------------------- Floating buttons ----------------------------- */
+.site .whatsapp-button {
+  position: fixed;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  inset-inline-end: calc(18px + env(safe-area-inset-right));
+  z-index: 90;
+  display: flex;
+  align-items: center;
+}
+.site .whatsapp-button__icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: #25d366;
+  color: #fff;
+  box-shadow: 0 12px 30px -8px rgba(37, 211, 102, 0.6);
+  transition: transform 0.3s var(--ease);
+}
+.site .whatsapp-button__icon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid #25d366;
+  animation: site-ring 2.6s ease-out infinite;
+}
+.site .whatsapp-button__tooltip {
+  position: absolute;
+  inset-inline-end: 70px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(16, 16, 26, 0.95);
+  border: 1px solid var(--glass-border);
+  color: #fff;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(8px);
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s var(--ease);
+}
+@media (hover: hover) {
+  .site .whatsapp-button:hover .whatsapp-button__icon {
+    transform: scale(1.07);
+  }
+  .site .whatsapp-button:hover .whatsapp-button__tooltip {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.site .social-floating {
+  position: fixed;
+  top: 50%;
+  inset-inline-start: 14px;
+  z-index: 80;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  transform: translateY(-50%);
+}
+.site .social-floating__btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-strong);
+  color: var(--text);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  transition: background-color 0.25s, color 0.25s, transform 0.25s var(--ease);
+}
+.site .social-floating__btn:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+  transform: translateX(3px);
+}
+@media (min-width: 1024px) {
+  .site .social-floating {
+    display: flex;
+  }
+}
+
+/* ---------------------------- Mobile: lighter --------------------------- */
+/* Phones get the same design without the expensive parts: no backdrop
+   blur (solid, slightly more opaque surfaces instead), no large shadows and
+   no infinite animations. */
+@media (max-width: 767px) {
+  .site :is(.nav, .mobile-menu, .btn--glass, .hero__eyebrow, .hero__arrow, .lang__menu) {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .site .nav,
+  .site .nav.is-scrolled {
+    background: var(--nav-bg-solid);
+  }
+  .site .mobile-menu {
+    background: var(--bg);
+  }
+  .site .btn--primary,
+  .site .whatsapp-button__icon {
+    box-shadow: none;
+  }
+  .site .hero__eyebrow-dot,
+  .site .whatsapp-button__icon::after,
+  .site .smart-img {
+    animation: none;
+  }
+  .site .whatsapp-button__icon::after {
+    display: none;
+  }
+}
+
+/* ------------------------------ Keyframes ------------------------------- */
+@keyframes site-fade-up {
+  from { opacity: 0; transform: translate3d(0, 16px, 0); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes site-word-up {
+  from { transform: translate3d(0, 105%, 0); }
+  to { transform: none; }
+}
+@keyframes site-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); }
+  70%, 100% { box-shadow: 0 0 0 10px transparent; }
+}
+@keyframes site-ring {
+  0% { transform: scale(1); opacity: 0.7; }
+  80%, 100% { transform: scale(1.5); opacity: 0; }
+}
+@keyframes site-shimmer {
+  to { background-position: -200% 0; }
+}
+@keyframes site-scroll-line {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+/* --------------------------------- RTL ---------------------------------- */
+[dir="rtl"] .site :is(.hero__title, .section-title, .hero__eyebrow, .section-tag) {
+  letter-spacing: 0;
+}
+[dir="rtl"] .site :is(.hero__title, .section-title) {
+  line-height: 1.3;
+}
+
+/* --------------------------- Reduced motion ----------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .site *,
+  .site *::before,
+  .site *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+}

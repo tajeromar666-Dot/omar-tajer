@@ -1,16 +1,14 @@
+import { memo } from "react";
 import { useLanguage } from "../context/LanguageContext.jsx";
-import {
-  loadCollaborateursCount,
-  loadColorOverrides,
-  loadSectionThemes,
-  loadTeam,
-  loadVisibility,
-  sectionThemeStyle,
-} from "../data/seedData";
+import { getTeamStatus, loadCollaborateursCount, loadTeam, loadVisibility, retryTeam } from "../data/seedData";
 import useLiveStorage from "../hooks/useLiveStorage";
-import useReveal from "../hooks/useReveal";
+import useSectionTheme from "../hooks/useSectionTheme";
 import Icon from "./Icons";
-import RevealCard from "./RevealCard";
+import Reveal from "./Reveal";
+import SectionHeader from "./SectionHeader";
+import { SectionError, SkeletonGrid } from "./SectionStatus";
+import SmartImage from "./SmartImage";
+import "../styles/sections.css";
 
 function getInitials(name) {
   if (!name?.trim()) return "?";
@@ -20,68 +18,82 @@ function getInitials(name) {
   return (first + last).toUpperCase();
 }
 
+const MemberCard = memo(function MemberCard({ member }) {
+  return (
+    <article className="member card card--hover">
+      <div className="member__photo">
+        {member.photo ? (
+          <SmartImage src={member.photo} alt={member.name} width={480} height={480} sizes="(min-width: 1024px) 25vw, 50vw" widths={[320, 480, 800]} />
+        ) : (
+          <span className="member__initials">{getInitials(member.name)}</span>
+        )}
+      </div>
+      <div className="member__body">
+        <h3 className="card__title">{member.name}</h3>
+        <p className="card__text">{member.role}</p>
+        {member.linkedin && (
+          <a
+            href={member.linkedin}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="member__linkedin"
+            aria-label={`LinkedIn — ${member.name}`}
+          >
+            <Icon name="linkedin" size={16} />
+          </a>
+        )}
+      </div>
+    </article>
+  );
+});
+
 export default function Team() {
-  const ref = useReveal();
   const { t } = useLanguage();
   const [team] = useLiveStorage(loadTeam);
+  const [status] = useLiveStorage(getTeamStatus);
   const [collaborateursCount] = useLiveStorage(loadCollaborateursCount);
   const [visibility] = useLiveStorage(loadVisibility);
-  const [sectionThemes] = useLiveStorage(loadSectionThemes);
-  const [colorOverrides] = useLiveStorage(loadColorOverrides);
+  const themeStyle = useSectionTheme("team");
 
-  if (!visibility.team || !team.length) return null;
+  if (!visibility.team) return null;
+  const loading = status === "loading" && !team.length;
+  const failed = status === "error" && !team.length;
+  if (!team.length && !loading && !failed) return null;
 
   return (
-    <section
-      id="team"
-      className="section steel-texture"
-      ref={ref}
-      style={sectionThemeStyle(sectionThemes, "team", colorOverrides)}
-    >
+    <section id="team" className="section" style={themeStyle}>
       <div className="container">
-        <div className="section-header reveal">
-          <span className="section-tag">{t.team.tag}</span>
-          <h2 className="section-title">
-            {t.team.titleA} <span>{t.team.titleAccent}</span> {t.team.titleB}
-          </h2>
-          <p className="section-subtitle">{t.team.subtitle}</p>
-        </div>
+        <SectionHeader
+          tag={t.team.tag}
+          titleA={t.team.titleA}
+          accent={t.team.titleAccent}
+          titleB={t.team.titleB}
+          subtitle={t.team.subtitle}
+        />
 
-        <div className="grid grid-4 team__grid">
-          {team.map((m, i) => (
-            <RevealCard className="team-card" index={i % 4} key={m.id}>
-              <div className="team-card__photo">
-                {m.photo ? (
-                  <img src={m.photo} alt={m.name} />
-                ) : (
-                  <div className="team-card__initials">{getInitials(m.name)}</div>
-                )}
-              </div>
-              <h3>{m.name}</h3>
-              <p>{m.role}</p>
-              {m.linkedin && (
-                <a
-                  href={m.linkedin}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="team-card__linkedin"
-                  aria-label={`LinkedIn de ${m.name}`}
-                >
-                  <Icon name="linkedin" size={16} />
-                </a>
-              )}
-            </RevealCard>
-          ))}
-
-          <RevealCard className="team-card team-stat-card" index={team.length % 4}>
-            <span className="team-stat-card__icon">
-              <Icon name="users" size={28} />
-            </span>
-            <span className="team-stat-card__number">{collaborateursCount}+</span>
-            <h3>{t.team.collaboratorsLabel}</h3>
-            <p>{t.team.collaboratorsSubtext}</p>
-          </RevealCard>
-        </div>
+        {loading ? (
+          <SkeletonGrid count={4} className="team__grid" />
+        ) : failed ? (
+          <SectionError onRetry={retryTeam} />
+        ) : (
+          <div className="team__grid">
+            {team.map((m, i) => (
+              <Reveal key={m.id} delay={i % 4}>
+                <MemberCard member={m} />
+              </Reveal>
+            ))}
+            <Reveal delay={team.length % 4}>
+              <article className="member member--stat card">
+                <span className="icon-chip icon-chip--lg">
+                  <Icon name="users" size={28} />
+                </span>
+                <span className="member__stat-number">{collaborateursCount}+</span>
+                <h3 className="card__title">{t.team.collaboratorsLabel}</h3>
+                <p className="card__text">{t.team.collaboratorsSubtext}</p>
+              </article>
+            </Reveal>
+          </div>
+        )}
       </div>
     </section>
   );

@@ -4,6 +4,7 @@ import { runMigrations } from "../data/seedData";
 import { isSupabaseConnected } from "../supabase";
 import Sidebar from "./Sidebar";
 import Icon from "../components/Icons";
+import "../styles/admin.css";
 
 export default function DashboardLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);

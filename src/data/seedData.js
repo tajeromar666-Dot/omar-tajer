@@ -3,7 +3,7 @@
 // localStorage; this module owns the keys, the defaults and the seeding.
 
 import { PARTNER_LOGOS } from "../assets/logos";
-import { isSupabaseConnected, supabase } from "../supabase";
+import { getSupabase, isSupabaseConnected } from "../supabase";
 import { createTableSync } from "./supabaseSync";
 import { deleteMedia, getMedia, listMediaKeys, saveMedia } from "../utils/storage";
 import { getContrastColor, getReadableAccent, mixHex } from "../utils/contrast";
@@ -1372,6 +1372,7 @@ function settingsRowValue(value) {
 async function fetchSettingsFromSupabase() {
   const seqAtStart = settingsWriteSeq;
   try {
+    const supabase = await getSupabase();
     const { data, error } = await supabase.from(KEYS.settings).select();
     if (error) throw error;
     if (seqAtStart !== settingsWriteSeq) return;
@@ -1384,10 +1385,11 @@ async function fetchSettingsFromSupabase() {
   }
 }
 
-function startSettingsRealtime() {
+async function startSettingsRealtime() {
   if (settingsRealtimeStarted) return;
   settingsRealtimeStarted = true;
   try {
+    const supabase = await getSupabase();
     supabase
       .channel(`${KEYS.settings}-changes`)
       .on("postgres_changes", { event: "*", schema: "public", table: KEYS.settings }, () => {
@@ -1421,6 +1423,7 @@ export async function saveSettings(settings) {
         key,
         value: settingsRowValue(value),
       }));
+      const supabase = await getSupabase();
       const { error } = await supabase.from(KEYS.settings).upsert(rows, { onConflict: "key" });
       if (error) throw error;
       settingsCache = settings;
@@ -1446,6 +1449,7 @@ async function migrateSettingsIfEmpty() {
     const existing = read(KEYS.settings, null);
     if (!existing) return;
 
+    const supabase = await getSupabase();
     const { data, error } = await supabase.from(KEYS.settings).select("key");
     if (error) throw error;
     const remoteKeys = new Set((data || []).map((r) => r.key));
@@ -1569,6 +1573,7 @@ function aboutFromRow(row) {
 async function fetchAboutFromSupabase() {
   const seqAtStart = aboutWriteSeq;
   try {
+    const supabase = await getSupabase();
     const { data, error } = await supabase.from(KEYS.about).select().eq("id", "about").maybeSingle();
     if (error) throw error;
     if (seqAtStart !== aboutWriteSeq || !data) return;
@@ -1580,10 +1585,11 @@ async function fetchAboutFromSupabase() {
   }
 }
 
-function startAboutRealtime() {
+async function startAboutRealtime() {
   if (aboutRealtimeStarted) return;
   aboutRealtimeStarted = true;
   try {
+    const supabase = await getSupabase();
     supabase
       .channel(`${KEYS.about}-changes`)
       .on("postgres_changes", { event: "*", schema: "public", table: KEYS.about }, () => {
@@ -1613,6 +1619,7 @@ export async function saveAbout(about) {
   aboutWriteSeq += 1;
   if (isSupabaseConnected) {
     try {
+      const supabase = await getSupabase();
       const { error } = await supabase.from(KEYS.about).upsert(aboutToRow(about));
       if (error) throw error;
       aboutCache = about;
@@ -1637,6 +1644,7 @@ async function migrateAboutIfEmpty() {
     const existing = read(KEYS.about, null);
     if (!existing) return;
 
+    const supabase = await getSupabase();
     const { data, error } = await supabase.from(KEYS.about).select("id").eq("id", "about").maybeSingle();
     if (error) throw error;
     if (data) return;
@@ -2155,3 +2163,44 @@ export function saveLocations(locations) {
 }
 
 export const STORAGE_KEYS = KEYS;
+
+// ---- First-load status for the other Supabase-backed lists ----------------
+// Same read-only contract as getProjectsStatus()/getPlans3DStatus() above
+// ("idle" | "loading" | "ready" | "error") plus the matching retry — lets
+// the public site show a skeleton while the first fetch is in flight and a
+// retry button only when both Supabase and the local fallback came up empty.
+export function getHeroSlidesStatus() {
+  return heroSlidesSync.getStatus();
+}
+// True once the hero slides currently held came from Supabase — until then
+// the public Hero may show the early REST prefetch from index.html instead.
+export function heroSlidesFromServer() {
+  return heroSlidesSync.hasRemoteData();
+}
+export function getServicesStatus() {
+  return servicesSync.getStatus();
+}
+export function retryServices() {
+  servicesSync.retry();
+}
+export function getPartnersStatus() {
+  return partnersSync.getStatus();
+}
+export function retryPartners() {
+  partnersSync.retry();
+}
+export function getTeamStatus() {
+  return teamSync.getStatus();
+}
+export function retryTeam() {
+  teamSync.retry();
+}
+export function getTestimonialsStatus() {
+  return testimonialsSync.getStatus();
+}
+export function retryTestimonials() {
+  testimonialsSync.retry();
+}
+export function getWhyUsSlidesStatus() {
+  return whyUsSlidesSync.getStatus();
+}

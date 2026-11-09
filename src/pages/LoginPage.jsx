@@ -4,6 +4,9 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { CIA_LOGO } from "../assets/logos";
 import { loadSettings } from "../data/seedData";
 import Icon from "../components/Icons";
+// Admin-only stylesheet (the original site-wide CSS) — imported here and in
+// DashboardLayout so it ships in the lazy admin chunk, never on the public site.
+import "../styles/admin.css";
 
 export default function LoginPage() {
   const { isAuthenticated, login } = useAuth();

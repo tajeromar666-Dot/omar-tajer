@@ -1,4 +1,4 @@
-import { isSupabaseConnected, supabase } from "../supabase";
+import { getSupabase, isSupabaseConnected } from "../supabase";
 import { getData, onMediaSync } from "../utils/storage";
 
 // Reusable per-table sync engine for the array-shaped domains (projects,
@@ -92,20 +92,15 @@ export function createTableSync({
 
   async function fetchFromSupabase() {
     const seqAtStart = writeSeq;
-    // --- temporary debug logging: connection status + exact table name,
-    // and (below) the full error or the returned data — remove once the
-    // "Impossible de charger" issue is confirmed fixed in production. ---
-    console.log(`[supabaseSync:${table}] fetching — isSupabaseConnected=${isSupabaseConnected}, table="${table}"`);
     try {
+      const supabase = await getSupabase();
       const { data, error } = await supabase
         .from(table)
         .select()
         .order(orderBy.column, { ascending: orderBy.ascending });
       if (error) throw error;
-      console.log(`[supabaseSync:${table}] fetch succeeded — rows:`, data);
       applyFetchResult(data || [], seqAtStart);
     } catch (err) {
-      console.log(`[supabaseSync:${table}] fetch FAILED — full error object:`, err);
       console.error(`supabaseSync(${table}): fetch failed, checking local fallback`, err);
       if (seqAtStart === writeSeq) {
         remoteSettled = true;
@@ -162,10 +157,11 @@ export function createTableSync({
     }
   }
 
-  function startRealtime() {
+  async function startRealtime() {
     if (realtimeStarted) return;
     realtimeStarted = true;
     try {
+      const supabase = await getSupabase();
       supabase
         .channel(`${table}-changes`)
         .on("postgres_changes", { event: "*", schema: "public", table }, () => {
@@ -207,6 +203,7 @@ export function createTableSync({
     remoteResolved = false;
     if (isSupabaseConnected) {
       try {
+        const supabase = await getSupabase();
         const rows = items.map((item, index) => toRow(item, index));
         const { error } = await supabase.from(table).upsert(rows);
         if (error) throw error;
@@ -246,6 +243,7 @@ export function createTableSync({
       const localItems = await localRead();
       if (!Array.isArray(localItems) || localItems.length === 0) return;
 
+      const supabase = await getSupabase();
       const { data, error } = await supabase.from(table).select("id");
       if (error) throw error;
       const remoteIds = new Set((data || []).map((r) => r.id));
@@ -263,7 +261,13 @@ export function createTableSync({
     }
   }
 
-  return { load, save, migrateIfEmpty: reconcile, getStatus, retry };
+  // Read-only: whether this load cycle's data came from Supabase (as
+  // opposed to the local IndexedDB/seed copy).
+  function hasRemoteData() {
+    return remoteResolved;
+  }
+
+  return { load, save, migrateIfEmpty: reconcile, getStatus, retry, hasRemoteData };
 }
 
 // Same "sync-looking load(), async background resolve + notify()" shape as
